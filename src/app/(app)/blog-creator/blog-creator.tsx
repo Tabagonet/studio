@@ -14,6 +14,8 @@ import { Step1Content } from './step-1-content';
 import { Step2Preview } from './step-2-preview';
 import { Step3Results } from './step-3-results';
 import { Card } from '@/components/ui/card';
+import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
+
 
 const LANG_CODE_MAP: { [key: string]: string } = {
     'Spanish': 'es',
@@ -31,12 +33,18 @@ export function BlogCreator() {
   const [steps, setSteps] = useState<SubmissionStep[]>([]);
   const [finalLinks, setFinalLinks] = useState<{ url: string; title: string }[]>([]);
 
+  const [imageToCrop, setImageToCrop] = useState<ProductPhoto | null>(null);
+
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
   const updatePostData = useCallback((data: Partial<BlogPostData>) => {
     setPostData(prev => ({ ...prev, ...data }));
   }, []);
+
+  const handlePhotosChange = useCallback((photos: ProductPhoto[]) => {
+    updatePostData({ featuredImage: photos[0] || null });
+  }, [updatePostData]);
 
   useEffect(() => {
     const topic = searchParams.get('topic');
@@ -142,7 +150,7 @@ export function BlogCreator() {
             // b. Create translated post
             updateStepStatus(`create_${lang}`, 'processing');
             const translatedPostData = { ...finalPostData, title: translatedContent.title, content: translatedContent.content };
-            const targetLangSlug = LANG_CODE_MAP[lang] || lang.toLowerCase().substring(0, 2);
+            const targetLangSlug = LANG_CODE_MAP[lang as keyof typeof LANG_CODE_MAP] || lang.toLowerCase().substring(0, 2);
             
             const translatedPayload = { 
                 postData: translatedPostData, 
@@ -205,15 +213,38 @@ export function BlogCreator() {
       setCurrentStep(1);
   };
   
+    const handleCroppedImageSave = (croppedImageFile: File) => {
+        if (!imageToCrop) return;
+        
+        const updatedPhoto: ProductPhoto = {
+            ...imageToCrop,
+            file: croppedImageFile,
+            name: croppedImageFile.name,
+            previewUrl: URL.createObjectURL(croppedImageFile),
+        };
+        
+        handlePhotosChange([updatedPhoto]);
+        setImageToCrop(null);
+        toast({ title: "Imagen Recortada", description: "La imagen destacada ha sido actualizada." });
+    };
+
   if (currentStep === 3) {
       return <Step3Results status={submissionStatus} steps={steps} finalLinks={finalLinks} onStartOver={startOver} />;
   }
 
   return (
     <div className="space-y-8">
-      {currentStep === 1 && <Step1Content postData={postData} updatePostData={updatePostData} />}
+      {currentStep === 1 && <Step1Content postData={postData} updatePostData={updatePostData} onCropImage={setImageToCrop} />}
       {currentStep === 2 && <Step2Preview postData={postData} />}
       
+        <ImageCropperDialog
+            open={!!imageToCrop}
+            onOpenChange={(open) => !open && setImageToCrop(null)}
+            imageToCrop={imageToCrop}
+            onSave={handleCroppedImageSave}
+            isSaving={false}
+        />
+
       <Card className="mt-8">
         <div className="flex justify-between p-4">
           <Button onClick={prevStep} disabled={currentStep === 1}>

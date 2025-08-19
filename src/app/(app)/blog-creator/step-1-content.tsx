@@ -33,7 +33,7 @@ const ALL_LANGUAGES = [
 ];
 
 
-export function Step1Content({ postData, updatePostData }: { postData: BlogPostData; updatePostData: (data: Partial<BlogPostData>) => void; }) {
+export function Step1Content({ postData, updatePostData, onCropImage }: { postData: BlogPostData; updatePostData: (data: Partial<BlogPostData>) => void; onCropImage: (photo: ProductPhoto) => void; }) {
     const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
     const [authors, setAuthors] = useState<WordPressUser[]>([]);
     const [isLoading, setIsLoading] = useState({ categories: true, authors: true, ai: false });
@@ -530,7 +530,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
 
                             <div className="pt-4 border-t">
                                 <Label htmlFor="tags">Etiquetas (Palabras Clave)</Label>
-                                <Input id="tags" name="tags" value={postData.tags} onChange={handleInputChange} placeholder="Ej: SEO, marketing, WordPress" />
+                                <Input id="tags" name="tags" value={postData.tags.join(', ')} onChange={e => updatePostData({tags: e.target.value.split(',').map(t => t.trim())})} placeholder="Ej: SEO, marketing, WordPress" />
                             </div>
                         </CardContent>
                     </Card>
@@ -538,7 +538,7 @@ export function Step1Content({ postData, updatePostData }: { postData: BlogPostD
                     <Card>
                         <CardHeader><CardTitle>Imagen Destacada</CardTitle></CardHeader>
                         <CardContent>
-                            <ImageUploader photos={postData.featuredImage ? [postData.featuredImage] : []} onPhotosChange={handlePhotoChange} isProcessing={false} maxPhotos={1} />
+                            <ImageUploader photos={postData.featuredImage ? [postData.featuredImage] : []} onPhotosChange={handlePhotoChange} isProcessing={false} maxPhotos={1} onCropImage={onCropImage} />
                         </CardContent>
                     </Card>
                 </div>
