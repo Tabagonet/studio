@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
 import { ArrowLeft, ArrowRight, Rocket } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 
 import { Step1Content } from './step-1-content';
 import { Step2Preview } from './step-2-preview';
@@ -64,6 +65,16 @@ export function BlogCreator() {
   };
 
   const handleCreatePost = async () => {
+    // Final validation check before submitting
+    if (!postData.title.trim() || !postData.content.trim()) {
+        toast({
+            title: "Faltan datos requeridos",
+            description: "El título y el contenido del post no pueden estar vacíos para crear la entrada.",
+            variant: "destructive",
+        });
+        return;
+    }
+
     setCurrentStep(3); // Move to the results/processing screen
     
     const initialSteps: SubmissionStep[] = [];
@@ -203,7 +214,24 @@ export function BlogCreator() {
   };
 
 
-  const nextStep = () => setCurrentStep(prev => Math.min(prev + 1, 2));
+  const nextStep = () => {
+    if (currentStep === 1) {
+        if (isStep1Valid) {
+            setCurrentStep(2);
+            window.scrollTo(0, 0);
+        } else {
+            toast({
+                title: "Faltan datos",
+                description: "El título y el contenido son obligatorios para previsualizar la entrada.",
+                variant: "destructive",
+            });
+        }
+    }
+    else if (currentStep < 3) {
+      setCurrentStep(prev => prev + 1);
+      window.scrollTo(0, 0);
+    }
+  };
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
   const startOver = () => {
       setPostData(INITIAL_BLOG_DATA);
@@ -227,6 +255,8 @@ export function BlogCreator() {
         setImageToCrop(null);
         toast({ title: "Imagen Recortada", description: "La imagen destacada ha sido actualizada." });
     };
+
+    const isStep1Valid = postData.title.trim() !== '' && postData.content.trim() !== '';
 
   if (currentStep === 3) {
       return <Step3Results status={submissionStatus} steps={steps} finalLinks={finalLinks} onStartOver={startOver} />;
@@ -253,18 +283,33 @@ export function BlogCreator() {
           </Button>
 
           {currentStep === 1 ? (
-            <Button onClick={nextStep}>
-              Previsualizar Entrada
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
-          ) : (
+             <TooltipProvider>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                         <div className="inline-block"> {/* Wrapper div for tooltip on disabled button */}
+                            <Button onClick={nextStep} disabled={!isStep1Valid}>
+                                Previsualizar Entrada
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                        </div>
+                    </TooltipTrigger>
+                    {!isStep1Valid && (
+                        <TooltipContent>
+                            <p>El título y el contenido son obligatorios.</p>
+                        </TooltipContent>
+                    )}
+                </Tooltip>
+             </TooltipProvider>
+          ) : currentStep === 2 ? (
             <Button onClick={handleCreatePost}>
               <Rocket className="mr-2 h-4 w-4" />
               Crear Entrada(s)
             </Button>
-          )}
+          ) : null}
         </div>
       </Card>
     </div>
   );
 }
+
+    
