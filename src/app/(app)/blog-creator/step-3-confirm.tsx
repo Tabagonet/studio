@@ -1,15 +1,10 @@
-
 // src/app/(app)/blog-creator/step-3-confirm.tsx
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BlogPostData } from "@/lib/types";
+import { BlogPostData, Step3ConfirmProps } from "@/lib/types"; // Import Step3ConfirmProps from shared types
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
-interface Step3ConfirmProps {
-  postData: BlogPostData;
-  onValidationComplete: (isValid: boolean) => void;
-}
 
 export function Step3Confirm({ postData, onValidationComplete }: Step3ConfirmProps) {
   const photosToUploadCount = postData.featuredImage?.file ? 1 : 0;
