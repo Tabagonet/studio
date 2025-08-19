@@ -21,6 +21,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
 import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
 
 
 interface PostEditState {
@@ -34,6 +35,7 @@ interface PostEditState {
   featuredImageId: number | null; // Keep track of the original featured media ID
   isElementor: boolean;
   elementorEditLink: string | null;
+  adminEditLink?: string | null;
   link: string;
   lang: string;
   translations?: Record<string, number>;
@@ -63,6 +65,8 @@ function EditPageContent() {
 
   const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+
+  const [imageToCrop, setImageToCrop] = useState<ProductPhoto | null>(null);
   
   const { toast } = useToast();
 
@@ -76,7 +80,25 @@ function EditPageContent() {
     if (!post) return;
     setPost({ ...post, content: newContent });
   };
+
+  const handlePhotosChange = (photos: ProductPhoto[]) => {
+    if (!post) return;
+    setPost({ ...post, featuredImage: photos[0] || null });
+  };
   
+  const handleCroppedImageSave = (croppedImageFile: File) => {
+    if (!imageToCrop) return;
+    const updatedPhoto: ProductPhoto = {
+      ...imageToCrop,
+      file: croppedImageFile,
+      name: croppedImageFile.name,
+      previewUrl: URL.createObjectURL(croppedImageFile),
+    };
+    handlePhotosChange([updatedPhoto]);
+    setImageToCrop(null);
+    toast({ title: "Imagen Recortada", description: "La imagen destacada ha sido actualizada." });
+  };
+
   const handleInsertImage = async () => {
       let finalImageUrl = imageUrl;
       if (imageFile) {
@@ -183,7 +205,6 @@ function EditPageContent() {
             tags: post.tags,
         };
         
-        // Handle featured image logic
         const newImage = post.featuredImage?.file ? post.featuredImage : null;
         if (newImage) {
             const formData = new FormData();
@@ -196,9 +217,8 @@ function EditPageContent() {
 
             if (!uploadResponse.ok) throw new Error('Failed to upload new featured image.');
             const imageData = await uploadResponse.json();
-            payload.featured_image_src = imageData.url;
+            payload.featured_media = imageData.id; // Use the returned ID
         } else if (!post.featuredImage) {
-            // Image was removed
             payload.featured_media = 0;
         }
         
@@ -215,7 +235,6 @@ function EditPageContent() {
         
         toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en WordPress.` });
 
-        // Fire-and-forget full content sync if checked
         if (syncFullContent && post.translations && Object.keys(post.translations).length > 1) {
             toast({ title: "Sincronizando contenido...", description: "Traduciendo y actualizando el contenido en las otras versiones. Esto puede tardar." });
             
@@ -415,174 +434,182 @@ function EditPageContent() {
 
   return (
     <div className="container mx-auto py-8 space-y-6">
-        <Card>
-            <CardHeader>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                    <div>
-                        <CardTitle>Editor de Entradas</CardTitle>
-                        <CardDescription>Editando: {post.title}</CardDescription>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                        <Button variant="outline" onClick={() => router.push('/blog')}>
-                            <ArrowLeft className="mr-2 h-4 w-4" />
-                            Volver a la lista
-                        </Button>
-                        <Button asChild variant="outline">
-                           <Link href={post.link} target="_blank" rel="noopener noreferrer">
-                                <ExternalLink className="mr-2 h-4 w-4" />
-                                Vista Previa
-                            </Link>
-                        </Button>
-                        <Button onClick={handleSaveChanges} disabled={isSaving || isSuggestingLinks}>
-                            {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                            Guardar Cambios
-                        </Button>
-                    </div>
+      <ImageCropperDialog
+        open={!!imageToCrop}
+        onOpenChange={(open) => !open && setImageToCrop(null)}
+        imageToCrop={imageToCrop}
+        onSave={handleCroppedImageSave}
+        isSaving={isSaving}
+      />
+      <Card>
+          <CardHeader>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                      <CardTitle>Editor de Entradas</CardTitle>
+                      <CardDescription>Editando: {post.title}</CardDescription>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" onClick={() => router.push('/blog')}>
+                          <ArrowLeft className="mr-2 h-4 w-4" />
+                          Volver a la lista
+                      </Button>
+                      <Button asChild variant="outline">
+                         <Link href={post.link} target="_blank" rel="noopener noreferrer">
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              Vista Previa
+                          </Link>
+                      </Button>
+                      <Button onClick={handleSaveChanges} disabled={isSaving || isSuggestingLinks}>
+                          {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                          Guardar Cambios
+                      </Button>
+                  </div>
+              </div>
+          </CardHeader>
+      </Card>
+
+      {post.isElementor && (
+        <Alert>
+          <ExternalLink className="h-4 w-4" />
+          <AlertTitle>Página de Elementor Detectada</AlertTitle>
+          <AlertDescription>
+              Para editar el contenido visual, debes usar el editor de Elementor. Esta herramienta te permite editar los metadatos y la organización.
+          </AlertDescription>
+          <Button asChild className="mt-4" size="sm">
+              <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Abrir con Elementor
+              </Link>
+          </Button>
+      </Alert>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        <div className="lg:col-span-2 space-y-6">
+           <Card>
+            <CardHeader><CardTitle>Contenido Principal</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                  <Label htmlFor="title">Título de la Entrada</Label>
+                  <Input id="title" name="title" value={post.title} onChange={handleInputChange} />
+              </div>
+              {!post.isElementor && (
+                <div>
+                    <Label htmlFor="content">Contenido</Label>
+                    <RichTextEditor
+                      content={post.content}
+                      onChange={handleContentChange}
+                      onInsertImage={() => setIsImageDialogOpen(true)}
+                      onSuggestLinks={isSuggestingLinks ? undefined : handleSuggestLinks}
+                      placeholder="Escribe el contenido de tu entrada..."
+                    />
                 </div>
-            </CardHeader>
-        </Card>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+        
+        <div className="space-y-6">
+          <Card>
+              <CardHeader>
+                  <CardTitle>Asistente de IA</CardTitle>
+                  <CardDescription>Utiliza la IA para mejorar tu contenido.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                  <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content || isSuggestingLinks} className="w-full">
+                      {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                      Mejorar Contenido
+                  </Button>
+                  <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content || isSuggestingLinks} className="w-full" variant="outline">
+                      {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
+                      Sugerir Etiquetas
+                  </Button>
+              </CardContent>
+          </Card>
+          <Card>
+              <CardHeader><CardTitle>Publicación</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => setPost(prev => prev ? {...prev, author: Number(v)} : null)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
+                <div><Label>Estado</Label><Select name="status" value={post.status} onValueChange={(v) => setPost(prev => prev ? {...prev, status: v as any} : null)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
+                
+                {post.translations && Object.keys(post.translations).length > 1 && (
+                    <div className="flex items-start space-x-2 pt-4 border-t">
+                        <Checkbox id="sync-full-content" checked={syncFullContent} onCheckedChange={(checked) => setSyncFullContent(!!checked)} />
+                        <div className="grid gap-1.5 leading-none">
+                            <Label htmlFor="sync-full-content" className="font-normal text-sm cursor-pointer">
+                                Sincronizar y sobrescribir contenido en todas las traducciones
+                            </Label>
+                            <p className="text-xs text-destructive">
+                                ¡Atención! Esto reemplazará el título y el contenido de todas las traducciones con una nueva versión traducida de esta entrada.
+                            </p>
+                        </div>
+                    </div>
+                )}
 
-        {post.isElementor && (
-          <Alert>
-            <ExternalLink className="h-4 w-4" />
-            <AlertTitle>Página de Elementor Detectada</AlertTitle>
-            <AlertDescription>
-                Para editar el contenido visual, debes usar el editor de Elementor. Esta herramienta te permite editar los metadatos y la organización.
-            </AlertDescription>
-            <Button asChild className="mt-4" size="sm">
-                <Link href={post.elementorEditLink!} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink className="mr-2 h-4 w-4" />
-                    Abrir con Elementor
-                </Link>
-            </Button>
-        </Alert>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 space-y-6">
-             <Card>
-              <CardHeader><CardTitle>Contenido Principal</CardTitle></CardHeader>
+              </CardContent>
+          </Card>
+          <Card>
+              <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                    <Label htmlFor="title">Título de la Entrada</Label>
-                    <Input id="title" name="title" value={post.title} onChange={handleInputChange} />
-                </div>
-                {!post.isElementor && (
-                  <div>
-                      <Label htmlFor="content">Contenido</Label>
-                      <RichTextEditor
-                        content={post.content}
-                        onChange={handleContentChange}
-                        onInsertImage={() => setIsImageDialogOpen(true)}
-                        onSuggestLinks={handleSuggestLinks}
-                        placeholder="Escribe el contenido de tu entrada..."
-                      />
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-          
-          <div className="space-y-6">
-            <Card>
-                <CardHeader>
-                    <CardTitle>Asistente de IA</CardTitle>
-                    <CardDescription>Utiliza la IA para mejorar tu contenido.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                    <Button onClick={() => handleAiGeneration('enhance_content')} disabled={isAiLoading || !post.content || isSuggestingLinks} className="w-full">
-                        {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                        Mejorar Contenido
-                    </Button>
-                    <Button onClick={() => handleAiGeneration('suggest_keywords')} disabled={isAiLoading || !post.content || isSuggestingLinks} className="w-full" variant="outline">
-                        {isAiLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Tags className="mr-2 h-4 w-4" />}
-                        Sugerir Etiquetas
-                    </Button>
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader><CardTitle>Publicación</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div><Label>Autor</Label><Select name="author" value={post.author?.toString() || ''} onValueChange={(v) => setPost(prev => prev ? {...prev, author: Number(v)} : null)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent>{authors.map(a => <SelectItem key={a.id} value={a.id.toString()}>{a.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div><Label>Estado</Label><Select name="status" value={post.status} onValueChange={(v) => setPost(prev => prev ? {...prev, status: v as any} : null)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="publish">Publicado</SelectItem><SelectItem value="draft">Borrador</SelectItem><SelectItem value="pending">Pendiente</SelectItem><SelectItem value="private">Privado</SelectItem></SelectContent></Select></div>
-                  
-                  {post.translations && Object.keys(post.translations).length > 1 && (
-                      <div className="flex items-start space-x-2 pt-4 border-t">
-                          <Checkbox id="sync-full-content" checked={syncFullContent} onCheckedChange={(checked) => setSyncFullContent(!!checked)} />
-                          <div className="grid gap-1.5 leading-none">
-                              <Label htmlFor="sync-full-content" className="font-normal text-sm cursor-pointer">
-                                  Sincronizar y sobrescribir contenido en todas las traducciones
-                              </Label>
-                              <p className="text-xs text-destructive">
-                                  ¡Atención! Esto reemplazará el título y el contenido de todas las traducciones con una nueva versión traducida de esta entrada.
-                              </p>
+                  <Label>Categorías</Label>
+                  <div className="max-h-40 overflow-y-auto space-y-2 p-2 border rounded-md">
+                      {allCategories.map(cat => (
+                          <div key={cat.id} className="flex items-center space-x-2">
+                              <Input type="checkbox" id={`cat-${cat.id}`} checked={post!.categories.includes(cat.id)} onChange={(e) => {
+                                  const newCategories = e.target.checked 
+                                    ? [...post!.categories, cat.id] 
+                                    : post!.categories.filter(c => c !== cat.id);
+                                  setPost(p => p ? {...p, categories: newCategories} : null);
+                              }} className="h-4 w-4" />
+                              <Label htmlFor={`cat-${cat.id}`} className="font-normal">{cat.name}</Label>
                           </div>
-                      </div>
-                  )}
-
-                </CardContent>
-            </Card>
-            <Card>
-                <CardHeader><CardTitle>Organización</CardTitle></CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label>Categorías</Label>
-                    <div className="max-h-40 overflow-y-auto space-y-2 p-2 border rounded-md">
-                        {allCategories.map(cat => (
-                            <div key={cat.id} className="flex items-center space-x-2">
-                                <Input type="checkbox" id={`cat-${cat.id}`} checked={post!.categories.includes(cat.id)} onChange={(e) => {
-                                    const newCategories = e.target.checked 
-                                      ? [...post!.categories, cat.id] 
-                                      : post!.categories.filter(c => c !== cat.id);
-                                    setPost(p => p ? {...p, categories: newCategories} : null);
-                                }} className="h-4 w-4" />
-                                <Label htmlFor={`cat-${cat.id}`} className="font-normal">{cat.name}</Label>
-                            </div>
-                        ))}
-                    </div>
+                      ))}
                   </div>
-                  <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={post.tags} onChange={handleInputChange} /></div>
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader><CardTitle>Imagen Destacada</CardTitle></CardHeader>
-                <CardContent>
-                    <ImageUploader 
-                        photos={post.featuredImage ? [post.featuredImage] : []} 
-                        onPhotosChange={(photos) => setPost(p => p ? {...p, featuredImage: photos[0] || null} : null)} 
-                        isProcessing={isSaving}
-                        maxPhotos={1}
-                    />
-                </CardContent>
-            </Card>
-             <Card>
-                <CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader>
-                <CardContent>
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button variant="destructive" className="w-full" disabled={isDeleting}>
-                                <Trash2 className="mr-2 h-4 w-4" /> Eliminar Entrada Permanentemente
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente la entrada.</AlertDialogDescription></AlertDialogHeader>
-                            <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeletePost} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
-                </CardContent>
-            </Card>
-          </div>
+                </div>
+                <div><Label htmlFor="tags">Etiquetas (separadas por comas)</Label><Input id="tags" name="tags" value={post.tags} onChange={handleInputChange} /></div>
+              </CardContent>
+          </Card>
+           <Card>
+              <CardHeader><CardTitle>Imagen Destacada</CardTitle></CardHeader>
+              <CardContent>
+                  <ImageUploader 
+                      photos={post.featuredImage ? [post.featuredImage] : []} 
+                      onPhotosChange={handlePhotosChange}
+                      onCropImage={setImageToCrop}
+                      isProcessing={isSaving}
+                      maxPhotos={1}
+                  />
+              </CardContent>
+          </Card>
+           <Card>
+              <CardHeader><CardTitle className="text-destructive">Zona de Peligro</CardTitle></CardHeader>
+              <CardContent>
+                  <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                          <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                              <Trash2 className="mr-2 h-4 w-4" /> Eliminar Entrada Permanentemente
+                          </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                          <AlertDialogHeader><AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle><AlertDialogDescription>Esta acción no se puede deshacer. Se eliminará permanentemente la entrada.</AlertDialogDescription></AlertDialogHeader>
+                          <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleDeletePost} className={buttonVariants({ variant: "destructive"})}>Sí, eliminar</AlertDialogAction></AlertDialogFooter>
+                      </AlertDialogContent>
+                  </AlertDialog>
+              </CardContent>
+          </Card>
         </div>
+      </div>
 
-        {/* DIALOGS */}
-        <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
-        <LinkSuggestionsDialog
-          open={linkSuggestions.length > 0 && !isSuggestingLinks}
-          onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
-          suggestions={linkSuggestions}
-          onApplySuggestion={handleApplySuggestion}
-          onApplyAll={handleApplyAllSuggestions}
-        />
+      {/* DIALOGS */}
+      <AlertDialog open={isImageDialogOpen} onOpenChange={setIsImageDialogOpen}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Insertar Imagen</AlertDialogTitle><AlertDialogDescription>Sube una imagen o introduce una URL para insertarla en el contenido.</AlertDialogDescription></AlertDialogHeader><div className="space-y-4"><div><Label htmlFor="image-upload">Subir archivo</Label><Input id="image-upload" type="file" accept="image/*" onChange={(e) => setImageFile(e.target.files?.[0] || null)} /></div><div className="relative"><div className="absolute inset-0 flex items-center"><span className="w-full border-t" /></div><div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">O</span></div></div><div><Label htmlFor="image-url">Insertar desde URL</Label><Input id="image-url" value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://ejemplo.com/imagen.jpg" /></div></div><AlertDialogFooter><AlertDialogCancel onClick={() => { setImageUrl(''); setImageFile(null); }}>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleInsertImage} disabled={isUploadingImage}>{isUploadingImage && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Insertar Imagen</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+      <LinkSuggestionsDialog
+        open={linkSuggestions.length > 0 && !isSuggestingLinks}
+        onOpenChange={(open) => { if (!open) setLinkSuggestions([]); }}
+        suggestions={linkSuggestions}
+        onApplySuggestion={handleApplySuggestion}
+        onApplyAll={handleApplyAllSuggestions}
+      />
     </div>
   );
 }
@@ -594,3 +621,5 @@ export default function BlogEditPage() {
         </Suspense>
     )
 }
+
+    

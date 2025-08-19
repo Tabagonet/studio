@@ -69,7 +69,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         finalContent = postData.content?.rendered || '';
     }
     
-    // --- New: Scrape live page for accurate image data ---
     const pageLink = postData.link;
     let scrapedImages: any[] = [];
     if (pageLink && wpApi) {
@@ -140,7 +139,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
             console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
         }
     }
-    // --- End new logic ---
 
     const transformed = {
       ...postData,
@@ -189,12 +187,17 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     
     if (featured_image_src) {
         const seoFilename = `${slugify(postPayload.title || 'blog-post')}-${postId}.jpg`;
-        (postPayload as any).featured_media = await uploadImageToWordPress(featured_image_src, seoFilename, {
-            title: postPayload.title || 'Blog Post Image',
-            alt_text: postPayload.title || '',
-            caption: '',
-            description: postPayload.content?.substring(0, 100) || '',
-        }, wpApi);
+        (postPayload as any).featured_media = await uploadImageToWordPress(
+            featured_image_src,
+            seoFilename,
+            {
+                title: postPayload.title || 'Blog Post Image',
+                alt_text: postPayload.title || '',
+                caption: '',
+                description: postPayload.content?.substring(0, 100) || '',
+            },
+            wpApi
+        );
     }
     
     const response = await wpApi.post(`/posts/${postId}`, postPayload);
@@ -249,11 +252,15 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
+    // The 'force: true' parameter ensures it's a permanent deletion.
+    // To move to trash, you would send a PUT/POST request to update status to 'trash'.
+    // Or, better, use a custom endpoint if you have one.
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
       throw new Error("Could not determine base site URL from WordPress API configuration.");
     }
     
+    // Using the custom endpoint for trashing
     const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/trash-post/${postId}`;
     const response = await wpApi.post(customEndpointUrl);
     
@@ -268,3 +275,5 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }
+
+    
