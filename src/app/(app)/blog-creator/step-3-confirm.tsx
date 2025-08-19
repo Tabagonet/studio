@@ -1,22 +1,37 @@
 // src/app/(app)/blog-creator/step-3-confirm.tsx
 import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { StepConfirmProps } from "@/lib/types"; 
+import type { StepConfirmProps, ProductData, BlogPostData } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
 
-export function Step3Confirm({ postData, onValidationComplete }: StepConfirmProps) {
-  const data = postData!;
-  const photosToUploadCount = data.featuredImage?.file ? 1 : 0;
-  const categoryName = data.category?.name || data.categoryPath || 'No especificada';
+export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
+  const isProduct = 'productType' in data;
+  const postData = !isProduct ? data as BlogPostData : null;
+  
+  const photosToUploadCount = postData?.featuredImage?.file ? 1 : 0;
+  const categoryName = postData?.category?.name || postData?.categoryPath || 'No especificada';
 
    // Perform validation here and call the callback
   useEffect(() => {
-    const isValid = !!data.title && !!data.content; 
-    onValidationComplete(isValid);
-  }, [data.title, data.content, onValidationComplete]);
+    if (postData) {
+      const isValid = !!postData.title && !!postData.content; 
+      onValidationComplete(isValid);
+    } else {
+      onValidationComplete(false);
+    }
+  }, [postData, onValidationComplete]);
 
+
+  if (!postData) {
+      return (
+          <Alert variant="destructive">
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>No se han proporcionado datos válidos para confirmar.</AlertDescription>
+          </Alert>
+      )
+  }
 
   return (
     <div className="space-y-8">
@@ -39,14 +54,14 @@ export function Step3Confirm({ postData, onValidationComplete }: StepConfirmProp
                 </li>
             )}
             <li>
-              <span className="font-semibold">Creación de Entrada Principal:</span> Se creará la entrada en {data.sourceLanguage}.
+              <span className="font-semibold">Creación de Entrada Principal:</span> Se creará la entrada en {postData.sourceLanguage}.
             </li>
-            {data.targetLanguages.length > 0 && (
+            {postData.targetLanguages.length > 0 && (
                  <li>
-                    <span className="font-semibold">Creación de Traducciones:</span> Se traducirá y creará una entrada para cada idioma seleccionado ({data.targetLanguages.join(', ')}).
+                    <span className="font-semibold">Creación de Traducciones:</span> Se traducirá y creará una entrada para cada idioma seleccionado ({postData.targetLanguages.join(', ')}).
                 </li>
             )}
-             {data.targetLanguages.length > 0 && (
+             {postData.targetLanguages.length > 0 && (
                  <li>
                     <span className="font-semibold">Enlazado Automático:</span> Todas las traducciones se enlazarán entre sí.
                 </li>
@@ -63,12 +78,12 @@ export function Step3Confirm({ postData, onValidationComplete }: StepConfirmProp
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <p><span className="font-semibold">Título:</span> {data.title || "N/A"}</p>
-            <p><span className="font-semibold">Autor:</span> {data.author?.name || "N/A"}</p>
+            <p><span className="font-semibold">Título:</span> {postData.title || "N/A"}</p>
+            <p><span className="font-semibold">Autor:</span> {postData.author?.name || "N/A"}</p>
             <p><span className="font-semibold">Categoría:</span> {categoryName}</p>
             <p><span className="font-semibold">Imágenes a subir:</span> {photosToUploadCount}</p>
-            <p><span className="font-semibold">Etiquetas:</span> {data.tags.join(', ') || "Ninguna"}</p>
-            <p><span className="font-semibold">Traducciones:</span> {data.targetLanguages.length > 0 ? data.targetLanguages.join(', ') : "Ninguna"}</p>
+            <p><span className="font-semibold">Etiquetas:</span> {postData.tags.join(', ') || "Ninguna"}</p>
+            <p><span className="font-semibold">Traducciones:</span> {postData.targetLanguages.length > 0 ? postData.targetLanguages.join(', ') : "Ninguna"}</p>
         </CardContent>
       </Card>
     </div>

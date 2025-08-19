@@ -1,31 +1,39 @@
 // src/app/(app)/wizard/step-3-confirm.tsx
 import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { StepConfirmProps } from "@/lib/types"; 
+import type { StepConfirmProps, ProductData } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
 
 export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
   const isProduct = 'productType' in data;
-  const productData = isProduct ? data : null;
-  const postData = !isProduct ? data : null;
+  const productData = isProduct ? data as ProductData : null;
 
   // Perform validation here and call the callback
   useEffect(() => {
-    const isValid = !!data && !!data.name; 
-    onValidationComplete(isValid);
-  }, [data, onValidationComplete]);
+    if (productData) {
+      const isValid = !!productData.name; 
+      onValidationComplete(isValid);
+    } else {
+      onValidationComplete(false);
+    }
+  }, [productData, onValidationComplete]);
 
 
-  if (!data) {
+  if (!productData) {
       return (
           <Alert variant="destructive">
               <AlertTitle>Error</AlertTitle>
-              <AlertDescription>No se han proporcionado datos para confirmar.</AlertDescription>
+              <AlertDescription>No se han proporcionado datos de producto para confirmar.</AlertDescription>
           </Alert>
       )
   }
+  
+  const photosToUploadCount = productData.photos.filter(p => !p.toDelete).length;
+  const validAttributesCount = productData.attributes.filter(a => a.name && a.name.trim() !== '').length;
+  const categoryName = productData.category?.name || productData.categoryPath || 'No especificada';
+
 
   return (
     <div className="space-y-8">
@@ -43,7 +51,7 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
           Al hacer clic en "Crear Producto", se realizarán las siguientes acciones en orden:
           <ul className="list-decimal list-inside mt-2 space-y-1">
             <li>
-              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {data.photos.length} imágen(es) a tu servidor. Verás el progreso en la sección de imágenes.
+              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {photosToUploadCount} imágen(es) a tu servidor. Verás el progreso en la sección de imágenes.
             </li>
             <li>
               <span className="font-semibold">Creación en WooCommerce:</span> Una vez que todas las imágenes estén subidas, se creará el producto en tu tienda con toda la información proporcionada.
@@ -60,13 +68,13 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
           </div>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <p><span className="font-semibold">Nombre:</span> {data.name || "N/A"}</p>
-            <p><span className="font-semibold">SKU:</span> {productData?.sku || "N/A"}</p>
-            <p><span className="font-semibold">Precio Regular:</span> {productData?.regularPrice ? `${productData.regularPrice}€` : "N/A"}</p>
-            <p><span className="font-semibold">Categoría:</span> {productData?.category?.name || productData?.categoryPath || 'No especificada'}</p>
-            <p><span className="font-semibold">Atributos:</span> {productData?.attributes.filter(a => a.name && a.name.trim() !== '').length}</p>
-            <p><span className="font-semibold">Imágenes:</span> {data.photos.length}</p>
-            <p><span className="font-semibold">Etiquetas:</span> {data.tags.join(', ') || "Ninguna"}</p>
+            <p><span className="font-semibold">Nombre:</span> {productData.name || "N/A"}</p>
+            <p><span className="font-semibold">SKU:</span> {productData.sku || "N/A"}</p>
+            <p><span className="font-semibold">Precio Regular:</span> {productData.regularPrice ? `${productData.regularPrice}€` : "N/A"}</p>
+            <p><span className="font-semibold">Categoría:</span> {categoryName}</p>
+            <p><span className="font-semibold">Atributos:</span> {validAttributesCount}</p>
+            <p><span className="font-semibold">Imágenes:</span> {photosToUploadCount}</p>
+            <p><span className="font-semibold">Etiquetas:</span> {productData.tags.join(', ') || "Ninguna"}</p>
         </CardContent>
       </Card>
       

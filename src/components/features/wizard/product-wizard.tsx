@@ -7,7 +7,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto, StepConfirmProps } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -179,7 +179,7 @@ export function ProductWizard() {
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
-        return <Step3Confirm productData={productData} onValidationComplete={setIsStepValid} />;
+        return <Step3Confirm data={productData} onValidationComplete={setIsStepValid} />;
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:

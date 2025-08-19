@@ -14,7 +14,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/comp
 
 import { Step1Content } from './step-1-content';
 import { Step2Preview } from './step-2-preview';
-import { Step3Confirm } from '../wizard/step-3-confirm'; // Reusing the component
+import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from '../wizard/step-4-processing'; // Reusing the component
 import { Card } from '@/components/ui/card';
 import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
