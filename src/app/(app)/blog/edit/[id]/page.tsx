@@ -196,36 +196,29 @@ function EditPageContent() {
 
     try {
         const token = await user.getIdToken();
-        const payload: any = {
+        const formData = new FormData();
+        
+        // Append all simple text/data fields to productData
+        const productDataPayload = {
             title: post.title,
             content: post.content,
             status: post.status,
             author: post.author,
             categories: post.categories,
             tags: post.tags,
+            featured_media: post.featuredImageId, // Send original ID
         };
-        
-        const newImage = post.featuredImage?.file ? post.featuredImage : null;
-        if (newImage) {
-            const formData = new FormData();
-            formData.append('imagen', newImage.file!);
-            const uploadResponse = await fetch('/api/upload-image', { 
-                method: 'POST', 
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData
-            });
+        formData.append('postData', JSON.stringify(productDataPayload));
 
-            if (!uploadResponse.ok) throw new Error('Failed to upload new featured image.');
-            const imageData = await uploadResponse.json();
-            payload.featured_media = imageData.id; // Use the returned ID
-        } else if (!post.featuredImage) {
-            payload.featured_media = 0;
+        // If a new/cropped image file exists, append it. The backend will handle the replacement logic.
+        if (post.featuredImage?.file) {
+            formData.append('featuredImageFile', post.featuredImage.file);
         }
         
         const response = await fetch(`/api/wordpress/posts/${postId}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify(payload)
+            headers: { 'Authorization': `Bearer ${token}` },
+            body: formData
         });
 
         if (!response.ok) {

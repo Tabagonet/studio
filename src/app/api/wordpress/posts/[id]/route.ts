@@ -20,20 +20,6 @@ const postUpdateSchema = z.object({
     categories: z.array(z.number()).optional(),
     tags: z.string().optional(),
     featured_media: z.number().optional().nullable(),
-    featured_image_src: z.string().url().optional(),
-    meta: z.object({
-        _yoast_wpseo_title: z.string().optional(),
-        _yoast_wpseo_metadesc: z.string().optional(),
-        _yoast_wpseo_focuskw: z.string().optional(),
-    }).optional(),
-    featured_image_metadata: z.object({
-        title: z.string(),
-        alt_text: z.string(),
-    }).optional(),
-    image_alt_updates: z.array(z.object({
-        id: z.number(),
-        alt: z.string(),
-    })).optional(),
 });
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
@@ -174,21 +160,23 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
     const postId = Number(params.id);
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
-    const body = await req.json();
-    const validation = postUpdateSchema.safeParse(body);
-    if (!validation.success) return NextResponse.json({ error: 'Invalid data.', details: validation.error.flatten() }, { status: 400 });
+    const formData = await req.formData();
+    const postDataString = formData.get('postData') as string;
+    if (!postDataString) {
+        return NextResponse.json({ error: 'postData missing from payload' }, { status: 400 });
+    }
+    const postPayload = JSON.parse(postDataString);
     
-    const { tags, featured_image_src, featured_image_metadata, image_alt_updates, ...postPayload } = validation.data;
-    
-    if (tags !== undefined) {
-        const tagNames = tags.split(',').map(t => t.trim()).filter(Boolean);
-        (postPayload as any).tags = await findOrCreateTags(tagNames, wpApi);
+    if (postPayload.tags !== undefined) {
+        const tagNames = postPayload.tags.split(',').map((t:string) => t.trim()).filter(Boolean);
+        postPayload.tags = await findOrCreateTags(tagNames, wpApi);
     }
     
-    if (featured_image_src) {
-        const seoFilename = `${slugify(postPayload.title || 'blog-post')}-${postId}.jpg`;
-        (postPayload as any).featured_media = await uploadImageToWordPress(
-            featured_image_src,
+    const imageFile = formData.get('featuredImageFile') as File | null;
+    if (imageFile) {
+        const seoFilename = `${slugify(postPayload.title || 'blog-post')}-${postId}.webp`;
+        const newImageId = await uploadImageToWordPress(
+            imageFile,
             seoFilename,
             {
                 title: postPayload.title || 'Blog Post Image',
@@ -198,34 +186,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
             },
             wpApi
         );
+        postPayload.featured_media = newImageId;
     }
     
     const response = await wpApi.post(`/posts/${postId}`, postPayload);
-    
-    if (featured_image_metadata && response.data.featured_media) {
-        try {
-            await wpApi.post(`/media/${response.data.featured_media}`, {
-                title: featured_image_metadata.title,
-                alt_text: featured_image_metadata.alt_text,
-            });
-        } catch (mediaError: any) {
-            console.warn(`Post updated, but failed to update featured image metadata for media ID ${response.data.featured_media}:`, mediaError.response?.data?.message || mediaError.message);
-        }
-    }
-    
-    if (image_alt_updates && image_alt_updates.length > 0) {
-        for (const update of image_alt_updates) {
-            try {
-                 if (update.id) {
-                    await wpApi.post(`/media/${update.id}`, {
-                        alt_text: update.alt
-                    });
-                 }
-            } catch (mediaError: any) {
-                console.warn(`Failed to update alt text for media ID ${update.id}:`, mediaError.response?.data?.message || mediaError.message);
-            }
-        }
-    }
     
     return NextResponse.json({ success: true, data: response.data });
   } catch (error: any) {
@@ -252,15 +216,11 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     const postId = params.id;
     if (!postId) return NextResponse.json({ error: 'Post ID is required.' }, { status: 400 });
 
-    // The 'force: true' parameter ensures it's a permanent deletion.
-    // To move to trash, you would send a PUT/POST request to update status to 'trash'.
-    // Or, better, use a custom endpoint if you have one.
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
       throw new Error("Could not determine base site URL from WordPress API configuration.");
     }
     
-    // Using the custom endpoint for trashing
     const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/trash-post/${postId}`;
     const response = await wpApi.post(customEndpointUrl);
     
