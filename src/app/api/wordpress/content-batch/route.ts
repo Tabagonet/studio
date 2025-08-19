@@ -69,19 +69,39 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
         }
     }
 
-    // 3. Merge and de-duplicate results
+    // 3. Merge and de-duplicate results with improved logic
     const finalImageMap = new Map<string, any>();
-
-    // Prioritize scraped data as it represents what's live
-    scrapedImages.forEach(img => finalImageMap.set(img.src, img));
-    // Add images from Elementor data only if they weren't found by scraping (e.g. background images not in `<img>` tags)
+    
+    // First, process images found in Elementor JSON, establishing a base record
     elementorImages.forEach(img => {
-        if (!finalImageMap.has(img.url)) {
-            finalImageMap.set(img.url, {
-                id: img.url, src: img.url, alt: '', mediaId: img.id,
-                width: img.width, height: img.height, context: img.context, widgetType: img.widgetType
-            });
-        }
+      if (img.url) {
+        finalImageMap.set(img.url, {
+            id: img.url,
+            src: img.url,
+            alt: '', // Default alt
+            mediaId: img.id || null,
+            width: img.width || null,
+            height: img.height || null,
+            context: img.context,
+            widgetType: img.widgetType,
+        });
+      }
+    });
+
+    // Now, iterate through scraped images and update/add entries
+    scrapedImages.forEach(img => {
+      if (finalImageMap.has(img.src)) {
+        // If image exists, enrich it with scraped data (alt, width, height are more reliable from HTML)
+        const existingImg = finalImageMap.get(img.src);
+        existingImg.alt = img.alt || existingImg.alt;
+        existingImg.width = img.width || existingImg.width;
+        existingImg.height = img.height || existingImg.height;
+        // Keep the mediaId from Elementor if the scraped one is null
+        existingImg.mediaId = existingImg.mediaId || img.mediaId;
+      } else {
+        // If it's a new image found only via scraping, add it
+        finalImageMap.set(img.src, img);
+      }
     });
 
     return {
