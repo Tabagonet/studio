@@ -298,12 +298,12 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
 
             // Dynamic "Featured Image" widget with fallback
             if (widgetType === 'theme-post-featured-image' && settings) {
-                // Check direct fallback object
-                const directFallback = settings.image?.fallback || settings.fallback;
-                if (directFallback) {
-                    processImageObject(directFallback, 'Imagen Destacada (Fallback)', widgetType);
+                const fallbackImage = settings.image?.fallback || settings.fallback;
+                if(fallbackImage) {
+                    processImageObject(fallbackImage, 'Imagen Destacada (Fallback)', widgetType);
                 }
-                // Check __dynamic__ field, which contains encoded JSON
+                
+                // Also check inside __dynamic__ for encoded settings
                 if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
                     try {
                         const tagString = settings.__dynamic__.image;
