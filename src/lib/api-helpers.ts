@@ -1,4 +1,3 @@
-
 // src/lib/api-helpers.ts
 import { admin, adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
@@ -123,15 +122,19 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
  * @returns A promise that resolves to the enriched image object.
  */
 export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance) {
-  // If we already have dimensions, there's no need to fetch.
-  // The alt text is best handled by the scraper as it reflects the live site.
-  if (!image.mediaId || (image.width && image.height)) {
+  // If we already have dimensions, there's no need to fetch. Return immediately.
+  if (image && image.width && image.height) {
     return image;
+  }
+  
+  if (!image.mediaId) {
+    return image; // Can't fetch without an ID
   }
 
   try {
     const { data } = await wpApi.get(`/media/${image.mediaId}`, { params: { context: 'view', _fields: 'alt_text,media_details' }});
-    // Only update if the current values are nullish. This prevents overwriting valid data.
+    // Return a new object with the original data plus the enriched fields.
+    // This prioritizes existing data (like alt from scraper) but adds missing info.
     return {
       ...image,
       alt: image.alt ?? data.alt_text ?? null,
@@ -172,8 +175,7 @@ export function findElementorImageContext(elementorData: any[]): {
   const imageKeys = [
     'image', 'background_image', 'background_a_image', 'background_b_image',
     'featured_image', 'image_box_image', 'icon_box_image', 'media',
-    'logo_image', 'image_overlay', 'background_overlay_image', 'gallery',
-    'image_carousel', 'slides'
+    'logo_image', 'image_overlay', 'background_overlay_image'
   ];
 
   function traverse(items: any[]) {
@@ -188,7 +190,7 @@ export function findElementorImageContext(elementorData: any[]): {
         if (imgObj?.url) {
           const width = widgetSettings.image_size?.width || widgetSettings.image_custom_dimension?.width || imgObj.width || null;
           const height = widgetSettings.image_size?.height || widgetSettings.image_custom_dimension?.height || imgObj.height || null;
-          const alt = imgObj.alt || widgetSettings.alt || null; // Extract alt from image object or widget settings
+          const alt = imgObj.alt || widgetSettings.alt || null; // Extraer alt del objeto de imagen o widget
           images.push({
             url: imgObj.url,
             id: imgObj.id || null,
@@ -221,15 +223,23 @@ export function findElementorImageContext(elementorData: any[]): {
 
       for (const key of imageKeys) {
         if (settings[key]) {
-            // Handle array-based widgets like galleries or carousels
-            if (Array.isArray(settings[key])) {
-                settings[key].forEach((subItem: any) => {
-                     const subContext = subItem.title || subItem.caption || `${key} en ${widgetType}`;
-                     processImageObject(subItem, subContext, widgetType, subItem);
-                });
-            } else {
-                 processImageObject(settings[key], contextText, widgetType, settings);
-            }
+          processImageObject(settings[key], contextText, widgetType, settings);
+        }
+      }
+
+      // Specific logic for array-based widgets like sliders or galleries
+      const arrayWidgets: { key: string, context: string }[] = [
+        { key: 'slides', context: 'Slide' },
+        { key: 'gallery', context: 'Galería' },
+        { key: 'image_carousel', context: 'Carrusel' },
+      ];
+
+      for (const widget of arrayWidgets) {
+        if (Array.isArray(settings[widget.key])) {
+          settings[widget.key].forEach((slide: any) => {
+            const slideContext = slide.heading || slide.title || `${widget.context} en ${widgetType}`;
+            processImageObject(slide.image || slide.background_image || slide, slideContext, widgetType, slide);
+          });
         }
       }
 

@@ -200,7 +200,7 @@ export function ImageCropperDialog({
                             onCheckedChange={(checked) => setIsAspectRatioLocked(!!checked)}
                             disabled={!imageToCrop?.width || !imageToCrop?.height}
                         />
-                        <Label htmlFor="lock-aspect-ratio" className="text-sm font-normal">
+                        <Label htmlFor="lock-aspect-ratio" className="text-sm font-normal cursor-pointer">
                             Mantener proporción de aspecto
                         </Label>
                     </div>
@@ -223,7 +223,7 @@ export function ImageCropperDialog({
                         ref={cropperRef}
                         src={sourceImage}
                         style={{ height: '100%', width: '100%' }}
-                        aspectRatio={cropperAspectRatio}
+                        aspectRatio={isAspectRatioLocked ? cropperAspectRatio : undefined}
                         viewMode={1}
                         dragMode="move"
                         guides={true}
@@ -261,4 +261,3 @@ export function ImageCropperDialog({
     </Dialog>
   );
 }
-
