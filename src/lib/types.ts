@@ -114,7 +114,7 @@ export interface BlogPostData {
   title: string;
   content: string;
   topic: string; // for AI
-  tags: string[];
+  tags: string[]; // Changed to array
   focusKeyword: string;
   metaDescription: string;
   category: WordPressPostCategory | null;
@@ -156,7 +156,7 @@ export interface ProductData {
   salePrice: string;
   shortDescription: string;
   longDescription: string;
-  tags: string[];
+  tags: string[]; // Changed to array
   category_id?: number | null;
   category?: WooCommerceCategory | null;
   categoryPath?: string;
@@ -509,7 +509,6 @@ export interface PlanUsage {
 
 // Unified Props for Step3Confirm components
 export interface StepConfirmProps {
-  productData?: ProductData;
-  postData?: BlogPostData;
+  data: ProductData | BlogPostData;
   onValidationComplete: (isValid: boolean) => void;
 }

@@ -1,3 +1,4 @@
+// src/app/(app)/blog-creator/blog-creator.tsx
 
 "use client";
 
@@ -13,8 +14,8 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/comp
 
 import { Step1Content } from './step-1-content';
 import { Step2Preview } from './step-2-preview';
-import { Step3Confirm } from './step-3-confirm';
-import { Step3Results } from './step-3-results';
+import { Step3Confirm } from '../wizard/step-3-confirm'; // Reusing the component
+import { Step4Processing } from '../wizard/step-4-processing'; // Reusing the component
 import { Card } from '@/components/ui/card';
 import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
 
@@ -269,13 +270,13 @@ export function BlogCreator() {
 
 
   if (currentStep === 3) {
-      return <Step3Results status={submissionStatus} steps={steps} finalLinks={finalLinks} onStartOver={startOver} />;
+      return <Step4Processing status={submissionStatus} steps={steps} />;
   }
 
   return (
     <div className="space-y-8">
       {currentStep === 1 && <Step1Content postData={postData} updatePostData={updatePostData} onCropImage={setImageToCrop} />}
-      {currentStep === 2 && <Step3Confirm postData={postData} onValidationComplete={setIsConfirmStepValid} />}
+      {currentStep === 2 && <Step3Confirm data={postData} onValidationComplete={setIsConfirmStepValid} />}
       
         <ImageCropperDialog
             open={!!imageToCrop}

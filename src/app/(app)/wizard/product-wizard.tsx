@@ -1,14 +1,13 @@
-
 // src/app/(app)/wizard/product-wizard.tsx
 
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
-import { Step2Preview } from './step-2-preview'; 
+import { Step2Preview } from './step-2-preview';
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto, StepConfirmProps } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -31,7 +30,7 @@ export function ProductWizard() {
   const { toast } = useToast();
 
   const isProcessing = submissionStatus === 'processing';
-  const [isStepValid, setIsStepValid] = useState(true);
+  const [isStepValid, setIsStepValid] = useState(false);
 
   const [imageToCrop, setImageToCrop] = useState<ProductPhoto | null>(null);
 
