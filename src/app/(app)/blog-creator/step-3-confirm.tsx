@@ -1,14 +1,16 @@
 // src/app/(app)/blog-creator/step-3-confirm.tsx
 import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { BlogPostData, StepConfirmProps } from "@/lib/types"; 
+import type { BlogPostData } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
+interface Step3ConfirmProps {
+  postData: BlogPostData;
+  onValidationComplete: (isValid: boolean) => void;
+}
 
-export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
-  const isProduct = 'productType' in data;
-  const postData = !isProduct ? data as BlogPostData : null;
+export function Step3Confirm({ postData, onValidationComplete }: Step3ConfirmProps) {
   
   // Perform validation here and call the callback
   useEffect(() => {

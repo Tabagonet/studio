@@ -276,7 +276,7 @@ export function BlogCreator() {
   return (
     <div className="space-y-8">
       {currentStep === 1 && <Step1Content postData={postData} updatePostData={updatePostData} onCropImage={setImageToCrop} />}
-      {currentStep === 2 && <Step3Confirm data={postData} onValidationComplete={setIsConfirmStepValid} />}
+      {currentStep === 2 && <Step3Confirm postData={postData} onValidationComplete={setIsConfirmStepValid} />}
       
         <ImageCropperDialog
             open={!!imageToCrop}
