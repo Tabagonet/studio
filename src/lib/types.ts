@@ -38,7 +38,7 @@ export interface ProductPhoto {
   uploadedFilename?: string;
   serverPath?: string;
   toDelete?: boolean; 
-  width?: number | string | null; // Optional dimensions
+  width?: number | string | null;
   height?: number | string | null;
 }
 
@@ -506,4 +506,10 @@ export interface PlanUsage {
     oneTimeAvailable: number;
     totalAvailable: number;
   };
+}
+
+// Wizard specific types
+export interface Step3ConfirmProps {
+  productData: ProductData;
+  onValidationComplete: (isValid: boolean) => void;
 }
