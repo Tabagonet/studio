@@ -31,7 +31,7 @@ interface ApiClients {
   wpApi: AxiosInstance | null;
   shopifyApi: AxiosInstance | null;
   activeConnectionKey: string | null;
-  settings: admin.firestore.DocumentData | undefined;
+  settings: admin_types.firestore.DocumentData | undefined;
   prompts: Record<string, string>; // NEW: Will hold the applicable prompts
 }
 
