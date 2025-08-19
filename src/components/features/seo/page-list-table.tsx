@@ -3,6 +3,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from 'next/navigation';
 import {
   flexRender,
   getCoreRowModel,
@@ -25,49 +26,47 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { SearchCheck, ChevronRight, FileText, Languages } from "lucide-react";
-import type { ContentItem, HierarchicalContentItem } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
+import { Loader2, SearchCheck, Languages, X, ChevronDown, Trash2 } from "lucide-react";
+import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
+import { getColumns } from '@/app/(app)/pages/columns';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { auth } from "@/lib/firebase";
 
-interface SeoPageListTableProps {
-  data: ContentItem[];
+
+interface PageDataTableProps {
+  data: HierarchicalContentItem[];
   scores: Record<number, number>;
-  onAnalyzePage: (page: ContentItem) => void;
-  onViewReport: (page: ContentItem) => void;
+  isLoading: boolean;
+  onDataChange: () => void;
   pageCount: number;
+  totalItems: number;
   pagination: { pageIndex: number; pageSize: number };
   setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
 }
 
-const getStatusText = (status: ContentItem['status']) => {
-    const statusMap: { [key: string]: string } = {
-        publish: 'Publicado',
-        draft: 'Borrador',
-        pending: 'Pendiente',
-        private: 'Privado',
-        future: 'Programado',
-    };
-    return statusMap[status] || status;
-};
-
-const ScoreBadge = ({ score }: { score: number | undefined }) => {
-    if (score === undefined) return null;
-    
-    const scoreColor = score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-amber-500' : 'bg-destructive';
-
-    return (
-        <Badge className={cn("text-white", scoreColor)}>{score}</Badge>
-    );
-};
-
-export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pageCount, pagination, setPagination }: SeoPageListTableProps) {
+export function SeoPageListTable({
+  data,
+  scores,
+  isLoading,
+  onDataChange,
+  pageCount,
+  totalItems,
+  pagination,
+  setPagination,
+}: PageDataTableProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
-  
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
   const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
     en: 'Inglés',
@@ -76,220 +75,198 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
     pt: 'Portugués',
   };
 
-  const tableData = React.useMemo((): HierarchicalContentItem[] => {
-    if (!data) return [];
+  const handleEditContent = (item: ContentItem) => {
+    router.push(`/pages/edit/${item.id}?type=${item.type}`);
+  };
+
+  const handleDeleteContent = async (item: ContentItem) => {
+    setIsDeleting(true);
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      setIsDeleting(false); return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/wordpress/pages/${item.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Fallo al mover a la papelera.');
+        toast({ title: "Movido a la papelera", description: `"${item.title}" ha sido movido a la papelera.` });
+        onDataChange();
+    } catch(e: any) {
+         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+  
+  const handleBatchDelete = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) return;
     
-    const itemsById = new Map<number, HierarchicalContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
-    const roots: HierarchicalContentItem[] = [];
-    const processedIds = new Set<number>();
-
-    data.forEach((item) => {
-        if (processedIds.has(item.id)) return;
-
-        let mainItem: HierarchicalContentItem | undefined;
-        const translationIds = new Set(Object.values(item.translations || {}));
+    setIsDeleting(true);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        setIsDeleting(false);
+        return;
+    }
+    const token = await user.getIdToken();
+    const postIds = selectedRows.map(row => row.original.id);
+    
+    try {
+         const response = await fetch('/api/wordpress/posts/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ postIds, action: 'delete' })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fallo la eliminación en lote.');
         
-        if (translationIds.size > 1) {
-            const groupItems = Array.from(translationIds)
-                .map(id => itemsById.get(id))
-                .filter((p): p is HierarchicalContentItem => !!p);
+        toast({ title: "Contenido movido a la papelera", description: `${result.results.success.length} elementos eliminados.` });
+        onDataChange();
+        table.resetRowSelection();
+    } catch (e: any) {
+        toast({ title: 'Error en lote', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
 
-            if (groupItems.length > 0) {
-                mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
-                
-                if (mainItem) {
-                    mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
-                    groupItems.forEach(p => processedIds.add(p.id));
-                }
-            } else {
-                mainItem = itemsById.get(item.id);
-                if(mainItem) processedIds.add(mainItem.id);
-            }
-        } else {
-            mainItem = itemsById.get(item.id);
-            if(mainItem) processedIds.add(mainItem.id);
-        }
+  const handleEditImages = (item: ContentItem) => {
+    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
+  };
 
-        if (mainItem) {
-            roots.push(mainItem);
-        }
-    });
-
-    return roots.sort((a,b) => a.title.localeCompare(b.title));
-  }, [data]);
-
-
-  const columns = React.useMemo<ColumnDef<HierarchicalContentItem>[]>(
-    () => [
-      {
-        accessorKey: 'title',
-        header: 'Título',
-        cell: ({ row, getValue }) => (
-            <div
-                style={{ paddingLeft: `${row.depth * 1.5}rem` }}
-                className="flex items-center gap-1"
-            >
-                {row.getCanExpand() ? (
-                    <button
-                        onClick={row.getToggleExpandedHandler()}
-                        className="cursor-pointer p-1 -ml-1"
-                        aria-label={row.getIsExpanded() ? 'Contraer fila' : 'Expandir fila'}
-                    >
-                        <ChevronRight className={cn("h-4 w-4 transition-transform", row.getIsExpanded() && 'rotate-90')} />
-                    </button>
-                ) : (
-                   row.depth > 0 && <span className="w-4 h-4 text-muted-foreground ml-1">↳</span>
-                )}
-                <span className="font-medium">{getValue<string>()}</span>
-            </div>
-        ),
-      },
-      {
-        accessorKey: 'type',
-        header: 'Tipo',
-        cell: ({ getValue }) => {
-          const type = getValue<string>();
-          let variant: "secondary" | "outline" | "default" = "secondary";
-          if (type.includes('Page') || type.includes('Página')) variant = 'outline';
-          if (type.includes('Product') || type.includes('Producto')) variant = 'default';
-
-          return <Badge variant={variant}>{type}</Badge>
-        }
-      },
-      {
-        accessorKey: 'status',
-        header: 'Estado',
-        cell: ({ getValue }) => <Badge variant={getValue<string>() === 'publish' ? 'default' : 'secondary'}>{getStatusText(getValue<ContentItem['status']>())}</Badge>
-      },
-       {
-        accessorKey: 'lang',
-        header: 'Idioma',
-        cell: ({ getValue }) => {
-            const lang = getValue<string>();
-            if (!lang || lang === 'default') {
-                return <Badge variant="outline" className="opacity-60">N/A</Badge>
-            }
-            return <Badge variant="outline" className="uppercase">{lang}</Badge>;
-        },
-        filterFn: (row, id, value) => {
-            const lang = row.getValue(id) as string;
-            return value.includes(lang)
-        },
-      },
-      {
-        id: 'score',
-        header: 'Score SEO',
-        cell: ({ row }) => <ScoreBadge score={scores[row.original.id]} />,
-      },
-      {
-        id: 'actions',
-        header: () => <div className="text-right">Acción</div>,
-        cell: ({ row }) => {
-            const hasScore = scores[row.original.id] !== undefined;
-            return (
-                <div className="text-right">
-                    {hasScore ? (
-                        <Button onClick={() => onViewReport(row.original)} size="sm" variant="outline">
-                            <FileText className="mr-0 md:mr-2 h-4 w-4" />
-                            <span className="hidden md:inline">Ver Informe</span>
-                        </Button>
-                    ) : (
-                        <Button onClick={() => onAnalyzePage(row.original)} size="sm">
-                            <SearchCheck className="mr-0 md:mr-2 h-4 w-4" />
-                            <span className="hidden md:inline">Analizar</span>
-                        </Button>
-                    )}
-                </div>
-            );
-        },
-      },
-    ],
-    [onAnalyzePage, onViewReport, scores]
-  );
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
-    data: tableData,
+    data,
     columns,
     pageCount: pageCount,
     state: {
+      sorting,
       expanded,
       columnFilters,
       pagination,
+      rowSelection,
     },
-    onExpandedChange: setExpanded,
-    onColumnFiltersChange: setColumnFilters,
     onPaginationChange: setPagination,
+    onSortingChange: setSorting,
+    onExpandedChange: setExpanded,
+    onRowSelectionChange: setRowSelection,
+    onColumnFiltersChange: setColumnFilters,
     getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     manualPagination: true,
   });
   
   const availableLanguages = React.useMemo(() => {
     const langSet = new Set<string>();
     data.forEach(item => {
-        if (item.lang && item.lang !== 'default') langSet.add(item.lang);
+        if (item.lang) langSet.add(item.lang);
+        item.subRows?.forEach(sub => {
+            if(sub.lang) langSet.add(sub.lang);
+        });
     });
     return Array.from(langSet).map(code => ({ code, name: LANGUAGE_MAP[code as keyof typeof LANGUAGE_MAP] || code.toUpperCase() }));
   }, [data]);
+  
+  const titleFilterValue = (table.getColumn('title')?.getFilterValue() as string) ?? '';
+  const selectedRowCount = Object.keys(rowSelection).length;
+
 
   return (
     <div className="w-full space-y-4">
-      <div className="flex flex-col sm:flex-row gap-2 py-4">
-        <Input
-          placeholder="Filtrar por título..."
-          value={(table.getColumn('title')?.getFilterValue() as string) ?? ''}
-          onChange={(event) =>
-            table.getColumn('title')?.setFilterValue(event.target.value)
-          }
-          className="max-w-sm"
-        />
-        <Select
-            value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
-            onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? null : value)}
-        >
-            <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por tipo" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="all">Todos los Tipos</SelectItem>
-                <SelectItem value="Page">Páginas</SelectItem>
-                 <SelectItem value="Categoría de Entradas">Cat. Entradas</SelectItem>
-            </SelectContent>
-        </Select>
-        <Select
-            value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
-            onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
-        >
-            <SelectTrigger className="w-full sm:w-[180px]">
-                <SelectValue placeholder="Filtrar por estado" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="all">Todos los Estados</SelectItem>
-                <SelectItem value="publish">Publicado</SelectItem>
-                <SelectItem value="draft">Borrador</SelectItem>
-                <SelectItem value="pending">Pendiente</SelectItem>
-                <SelectItem value="private">Privado</SelectItem>
-            </SelectContent>
-        </Select>
-         <Select
-            value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
-            onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
-            disabled={availableLanguages.length === 0}
-        >
-            <SelectTrigger className="w-full sm:w-[180px]">
-                <Languages className="mr-2 h-4 w-4" />
-                <SelectValue placeholder="Filtrar por idioma" />
-            </SelectTrigger>
-            <SelectContent>
-                <SelectItem value="all">Todos los Idiomas</SelectItem>
-                 {availableLanguages.map(lang => (
-                    <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
-                ))}
-            </SelectContent>
-        </Select>
+      <div className="flex flex-col md:flex-row items-center justify-between gap-4 py-4">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+            <div className="relative max-w-sm w-full sm:w-auto">
+              <Input
+                placeholder="Filtrar por título..."
+                value={titleFilterValue}
+                onChange={(event) => table.getColumn('title')?.setFilterValue(event.target.value)}
+                className="pr-8"
+              />
+              {titleFilterValue && (
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground"
+                  onClick={() => table.getColumn('title')?.setFilterValue('')}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+            <Select
+                value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
+                onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
+            >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                    <SelectValue placeholder="Filtrar por estado" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los Estados</SelectItem>
+                    <SelectItem value="publish">Publicado</SelectItem>
+                    <SelectItem value="draft">Borrador</SelectItem>
+                    <SelectItem value="pending">Pendiente</SelectItem>
+                    <SelectItem value="private">Privado</SelectItem>
+                </SelectContent>
+            </Select>
+             <Select
+                value={table.getColumn('lang')?.getFilterValue() as string ?? 'all'}
+                onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? null : value)}
+                disabled={availableLanguages.length === 0}
+            >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                    <Languages className="mr-2 h-4 w-4" />
+                    <SelectValue placeholder="Filtrar por idioma" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">Todos los Idiomas</SelectItem>
+                     {availableLanguages.map(lang => (
+                        <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+         {selectedRowCount > 0 && (
+             <AlertDialog>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={isDeleting}>
+                      {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                      Acciones ({selectedRowCount})
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                     <AlertDialogTrigger asChild>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Mover a la papelera
+                        </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                      <AlertDialogTitle>¿Confirmar acción?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                         Se moverán {selectedRowCount} elemento(s) a la papelera.
+                      </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBatchDelete} className="bg-destructive hover:bg-destructive/90">Confirmar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+         )}
       </div>
 
       <div className="rounded-md border">
@@ -306,22 +283,38 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {isLoading ? (
+              <TableRow>
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  <div className="flex justify-center items-center"><Loader2 className="mr-2 h-6 w-6 animate-spin" /> Cargando contenido...</div>
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
+                <TableRow 
+                  key={row.id} 
+                  data-state={row.getIsSelected() && "selected"}
+                  onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      if (!(target instanceof HTMLButtonElement || target.tagName === 'A' || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
+                        router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
+                      }
+                    }}
+                  className="cursor-pointer"
+                >
                   {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
+                    <TableCell key={cell.id} onClick={(e) => {
+                      if (cell.column.id === 'select' || cell.column.id === 'actions') {
+                        e.stopPropagation();
+                      }
+                    }}>
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No se encontraron resultados para los filtros seleccionados.
-                </TableCell>
-              </TableRow>
+              <TableRow><TableCell colSpan={columns.length} className="h-24 text-center">No se encontraron resultados.</TableCell></TableRow>
             )}
           </TableBody>
         </Table>
@@ -329,6 +322,7 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
       
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
+           {selectedRowCount} de {totalItems} fila(s) seleccionadas.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
@@ -363,7 +357,6 @@ export function SeoPageListTable({ data, scores, onAnalyzePage, onViewReport, pa
             </div>
         </div>
       </div>
-
     </div>
   );
 }

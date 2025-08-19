@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FileText, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
-import { PageDataTable } from "./page-data-table";
+import { SeoPageListTable } from "@/components/features/seo/page-list-table";
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -152,7 +152,7 @@ export default function PagesManagementPage() {
           </Alert>
       )}
       
-       <PageDataTable 
+       <SeoPageListTable 
          data={data} 
          scores={scores}
          isLoading={isLoading} 

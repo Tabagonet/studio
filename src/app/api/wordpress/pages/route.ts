@@ -1,8 +1,7 @@
-
 // src/app/api/wordpress/pages/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser } from '@/lib/server-api-helpers';
+import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ContentItem } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
 
@@ -56,13 +55,13 @@ export async function GET(req: NextRequest) {
         console.warn("Could not retrieve site settings to determine front page.");
     }
     
-    // Fetch all pages at once
+    // Fetch all pages at once by iterating through pagination
     const allPages: any[] = [];
     let currentPage = 1;
     while (true) {
         const response = await wpApi.get('pages', {
             params: {
-                per_page: 100,
+                per_page: 100, // Fetch max allowed per page
                 page: currentPage,
                 context: 'view',
                 _embed: false,
@@ -92,7 +91,7 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch pages.';
-    const status = error.message?.includes('not configured') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     console.error("Critical error in pages API:", error);
     return NextResponse.json({ error: errorMessage }, { status });
   }
