@@ -247,84 +247,102 @@ export function replaceElementorTexts(data: any, widgetUpdates: Map<string, stri
     return traverse(data);
 }
 
-/**
- * Recursively finds image URLs, IDs, and context in Elementor JSON data.
- * This is a more robust version that handles various widget types and dynamic content.
- * @param elementorData The Elementor data (elements array, section, column, etc.).
- * @returns An array of objects, each containing image details.
- */
-export function findElementorImageContext(elementorData: any[]): { url: string; id: number | null, width: number | string | null, height: number | string | null, context: string, widgetType: string }[] {
-    const images: { url: string; id: number | null, width: number | string | null, height: number | string | null, context: string, widgetType: string }[] = [];
-    if (!elementorData || !Array.isArray(elementorData)) return images;
+export function findElementorImageContext(elementorData: any[]): {
+  url: string;
+  id: number | null;
+  alt: string | null;
+  width: number | string | null;
+  height: number | string | null;
+  context: string;
+  widgetType: string;
+}[] {
+  const images: {
+    url: string;
+    id: number | null;
+    alt: string | null;
+    width: number | string | null;
+    height: number | string | null;
+    context: string;
+    widgetType: string;
+  }[] = [];
+  if (!elementorData || !Array.isArray(elementorData)) return images;
 
-    const imageKeys = [
-        'image', 'background_image', 'background_a_image', 'background_b_image',
-        'featured_image', 'image_box_image', 'icon_box_image', 'media', 
-        'logo_image', 'image_overlay', 'background_overlay_image'
-    ];
+  const imageKeys = [
+    'image', 'background_image', 'background_a_image', 'background_b_image',
+    'featured_image', 'image_box_image', 'icon_box_image', 'media',
+    'logo_image', 'image_overlay', 'background_overlay_image'
+  ];
 
-    function traverse(items: any[]) {
-        for (const item of items) {
-            if (!item || typeof item !== 'object') continue;
+  function traverse(items: any[]) {
+    for (const item of items) {
+      if (!item || typeof item !== 'object') continue;
 
-            const settings = item.settings || {};
-            const widgetType = item.widgetType || 'unknown';
-            let contextText = settings.title || settings.title_text || settings.caption || `Widget: ${widgetType}`;
+      const settings = item.settings || {};
+      const widgetType = item.widgetType || 'unknown';
+      let contextText = settings.title || settings.title_text || settings.caption || `Widget: ${widgetType}`;
 
-            const processImageObject = (imgObj: any, context: string, type: string, widgetSettings: any = {}) => {
-                if (imgObj?.url) {
-                    const width = widgetSettings.image_size?.width || widgetSettings.image_custom_dimension?.width || imgObj.width || null;
-                    const height = widgetSettings.image_size?.height || widgetSettings.image_custom_dimension?.height || imgObj.height || null;
-                    images.push({ url: imgObj.url, id: imgObj.id || null, width, height, context, widgetType: type });
-                }
-            };
-            
-            // Handle dynamic images like featured image fallbacks
-            if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
-                try {
-                    const tagString = settings.__dynamic__.image;
-                    const settingsMatch = tagString.match(/settings="([^"]+)"/);
-                    if (settingsMatch && settingsMatch[1]) {
-                        const decodedSettings = decodeURIComponent(settingsMatch[1].replace(/&quot;/g, '"'));
-                        const parsedSettings = JSON.parse(decodedSettings);
-                        if (parsedSettings.fallback) {
-                            processImageObject(parsedSettings.fallback, 'Imagen Destacada (Fallback)', widgetType, settings);
-                        }
-                    }
-                } catch (e) {
-                     console.warn(`Could not parse dynamic settings for widget ${item.id}`, e);
-                }
-            }
-
-            for (const key of imageKeys) {
-                if (settings[key]) {
-                    processImageObject(settings[key], contextText, widgetType, settings);
-                }
-            }
-            
-            // Specific logic for array-based widgets like sliders or galleries
-            const arrayWidgets: { key: string, context: string }[] = [
-                { key: 'slides', context: 'Slide' },
-                { key: 'gallery', context: 'Galería' },
-            ];
-
-            for (const widget of arrayWidgets) {
-                if (Array.isArray(settings[widget.key])) {
-                    settings[widget.key].forEach((slide: any) => {
-                        const slideContext = slide.heading || slide.title || `${widget.context} en ${widgetType}`;
-                        processImageObject(slide.image || slide.background_image || slide, slideContext, widgetType, slide);
-                    });
-                }
-            }
-
-            if (item.elements && Array.isArray(item.elements) && item.elements.length > 0) {
-                traverse(item.elements);
-            }
+      const processImageObject = (imgObj: any, context: string, type: string, widgetSettings: any = {}) => {
+        if (imgObj?.url) {
+          const width = widgetSettings.image_size?.width || widgetSettings.image_custom_dimension?.width || imgObj.width || null;
+          const height = widgetSettings.image_size?.height || widgetSettings.image_custom_dimension?.height || imgObj.height || null;
+          const alt = imgObj.alt || widgetSettings.alt || null;
+          images.push({
+            url: imgObj.url,
+            id: imgObj.id || null,
+            alt,
+            width,
+            height,
+            context,
+            widgetType: type
+          });
         }
-    }
+      };
 
-    traverse(elementorData);
-    return Array.from(new Map(images.map(img => [img.url, img])).values());
+      if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
+        try {
+          const tagString = settings.__dynamic__.image;
+          const settingsMatch = tagString.match(/settings="([^"]+)"/);
+          if (settingsMatch && settingsMatch[1]) {
+            const decodedSettings = decodeURIComponent(settingsMatch[1].replace(/&quot;/g, '"'));
+            const parsedSettings = JSON.parse(decodedSettings);
+            const fallback = parsedSettings.fallback || (parsedSettings.settings?.fallback);
+            if (fallback) {
+              processImageObject(fallback, 'Imagen Destacada (Fallback)', widgetType, settings);
+            }
+          }
+        } catch (e) {
+          console.warn(`Could not parse dynamic settings for widget ${item.id}`, e);
+        }
+      }
+
+      for (const key of imageKeys) {
+        if (settings[key]) {
+          processImageObject(settings[key], contextText, widgetType, settings);
+        }
+      }
+
+      const arrayWidgets: { key: string, context: string }[] = [
+        { key: 'slides', context: 'Slide' },
+        { key: 'gallery', context: 'Galería' },
+      ];
+
+      for (const widget of arrayWidgets) {
+        if (Array.isArray(settings[widget.key])) {
+          settings[widget.key].forEach((slide: any) => {
+            const slideContext = slide.heading || slide.title || `${widget.context} en ${widgetType}`;
+            processImageObject(slide.image || slide.background_image || slide, slideContext, widgetType, slide);
+          });
+        }
+      }
+
+      if (item.elements && Array.isArray(item.elements) && item.elements.length > 0) {
+        traverse(item.elements);
+      }
+    }
+  }
+
+  traverse(elementorData);
+  return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
 
 

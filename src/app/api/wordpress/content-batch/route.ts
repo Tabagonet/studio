@@ -59,8 +59,12 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
                     const mediaId = match ? parseInt(match[1], 10) : null;
                     
                     imageMap.set(absoluteSrc, {
-                        id: absoluteSrc, src: absoluteSrc, alt: $(el).attr('alt') || '', mediaId: mediaId,
-                        width: $(el).attr('width') || null, height: $(el).attr('height') || null
+                        id: absoluteSrc,
+                        src: absoluteSrc,
+                        alt: $(el).attr('alt') || null,
+                        mediaId: mediaId,
+                        width: $(el).attr('width') || null,
+                        height: $(el).attr('height') || null
                     });
                 }
             });
@@ -73,45 +77,43 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     // 3. Merge and de-duplicate results with improved logic
     const finalImageMap = new Map<string, any>();
 
-    // First, process images found in Elementor JSON, as they contain widget context.
+    // Prioritize Elementor images for metadata accuracy (context, widgetType)
     elementorImages.forEach(img => {
         finalImageMap.set(img.url, {
             id: img.url,
             src: img.url,
-            alt: '', // Initialize alt text
-            mediaId: img.id,
-            width: img.width, // Width from widget settings
-            height: img.height, // Height from widget settings
+            alt: img.alt || null,
+            mediaId: img.id || null,
+            width: img.width || null,
+            height: img.height || null,
             context: img.context,
-            widgetType: img.widgetType,
+            widgetType: img.widgetType
         });
     });
 
-    // Now, iterate through scraped images to enrich the map or add new images.
+    // Enrich with scraped data only if metadata is missing
     scrapedImages.forEach(img => {
-      if (finalImageMap.has(img.src)) {
-        // If image exists from Elementor data, enrich it with scraped data
-        const existingImg = finalImageMap.get(img.src);
-        existingImg.alt = img.alt || existingImg.alt;
-        existingImg.mediaId = existingImg.mediaId || img.mediaId;
-        // Prioritize final rendered dimensions from scraping
-        existingImg.width = img.width || existingImg.width;
-        existingImg.height = img.height || existingImg.height;
-      } else {
-        // If it's a new image found only by scraping, add it
-        finalImageMap.set(img.src, {
-            id: img.src,
-            src: img.src,
-            alt: img.alt,
-            mediaId: img.mediaId,
-            width: img.width,
-            height: img.height,
-            context: 'Contenido HTML', // Generic context for scraped images
-            widgetType: 'image',
-        });
-      }
+        if (finalImageMap.has(img.src)) {
+            const existingImg = finalImageMap.get(img.src);
+            // Only update alt, width, height if not provided by Elementor
+            existingImg.alt = existingImg.alt ?? img.alt;
+            existingImg.mediaId = existingImg.mediaId ?? img.mediaId;
+            existingImg.width = existingImg.width ?? img.width;
+            existingImg.height = existingImg.height ?? img.height;
+        } else {
+            // If the image was only found by scraping, add it.
+            finalImageMap.set(img.src, {
+                id: img.src,
+                src: img.src,
+                alt: img.alt || null,
+                mediaId: img.mediaId || null,
+                width: img.width || null,
+                height: img.height || null,
+                context: 'Contenido HTML',
+                widgetType: 'image'
+            });
+        }
     });
-
 
     return {
         id: post.id,
