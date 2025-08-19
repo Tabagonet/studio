@@ -262,45 +262,63 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
 
             const settings = item.settings;
             const widgetType = item.widgetType || 'unknown';
-            let contextText = settings?.title || settings?.title_text || settings?.text || item.id;
+            let contextText = settings?.title || settings?.title_text || settings?.text || settings?.caption || `Widget: ${widgetType}`;
+            
+            const processImageObject = (imgObj: any, context: string, type: string) => {
+                if (imgObj?.url) {
+                    images.push({ url: imgObj.url, id: imgObj.id || null, width: imgObj.width || null, height: imgObj.height || null, context, widgetType: type });
+                }
+            };
             
             // Standard image widget
-            if (widgetType === 'image' && settings?.image?.url) {
-                images.push({ url: settings.image.url, id: settings.image.id || null, width: settings.image.width || null, height: settings.image.height || null, context: contextText, widgetType });
+            if (widgetType === 'image' && settings?.image) {
+                processImageObject(settings.image, contextText, widgetType);
+            }
+             if (widgetType === 'the7_image_box_widget' && settings?.image) {
+                processImageObject(settings.image, settings.title_text || `Widget: ${widgetType}`, widgetType);
             }
 
-            // Background images (for sections, columns)
-            if (settings?.background_image?.url) {
-                images.push({ url: settings.background_image.url, id: settings.background_image.id || null, width: null, height: null, context: `Fondo de ${item.elType}`, widgetType: `background` });
-            }
-             if (settings?.background_overlay_image?.url) {
-                images.push({ url: settings.background_overlay_image.url, id: settings.background_overlay_image.id || null, width: null, height: null, context: `Fondo Superpuesto de ${item.elType}`, widgetType: `background-overlay` });
-            }
+            // Background images
+            if (settings?.background_image) processImageObject(settings.background_image, `Fondo de ${item.elType}`, 'background');
+            if (settings?.background_overlay_image) processImageObject(settings.background_overlay_image, `Fondo Superpuesto de ${item.elType}`, 'background-overlay');
 
-            // Specific widgets (sliders, flip boxes, etc.)
+            // Sliders and Carousels
             if (widgetType === 'slides' && Array.isArray(settings?.slides)) {
-                settings.slides.forEach((slide: any) => {
-                    if (slide.background_image?.url) {
-                        images.push({ url: slide.background_image.url, id: slide.background_image.id || null, width: null, height: null, context: slide.heading || `Slide en ${widgetType}`, widgetType });
-                    }
-                });
+                settings.slides.forEach((slide: any) => processImageObject(slide.background_image, slide.heading || `Slide en ${widgetType}`, widgetType));
+            }
+            if (widgetType === 'media-carousel' && Array.isArray(settings?.slides)) {
+                 settings.slides.forEach((slide: any) => processImageObject(slide.image, `Carrusel en ${widgetType}`, widgetType));
             }
 
+            // Flip Boxes
             if (widgetType === 'flip-box' && settings) {
-                if (settings.background_a_image?.url) images.push({ url: settings.background_a_image.url, id: settings.background_a_image.id || null, width: null, height: null, context: 'Flip Box (Lado A)', widgetType });
-                if (settings.background_b_image?.url) images.push({ url: settings.background_b_image.url, id: settings.background_b_image.id || null, width: null, height: null, context: 'Flip Box (Lado B)', widgetType });
-            }
-            
-            if (widgetType === 'the7_image_box_widget' && settings?.image?.url) {
-                 images.push({ url: settings.image.url, id: settings.image.id || null, width: null, height: null, context: settings.title_text || `Widget: ${widgetType}`, widgetType });
+                processImageObject(settings.background_a_image, 'Flip Box (Lado A)', widgetType);
+                processImageObject(settings.background_b_image, 'Flip Box (Lado B)', widgetType);
             }
 
             // Dynamic "Featured Image" widget with fallback
             if (widgetType === 'theme-post-featured-image' && settings) {
-                 const fallback = settings.image?.fallback || settings.fallback;
-                 if (fallback?.url) {
-                     images.push({ url: fallback.url, id: fallback.id || null, width: null, height: null, context: 'Imagen Destacada (Fallback)', widgetType });
-                 }
+                // Check direct fallback object
+                const directFallback = settings.image?.fallback || settings.fallback;
+                if (directFallback) {
+                    processImageObject(directFallback, 'Imagen Destacada (Fallback)', widgetType);
+                }
+                // Check __dynamic__ field, which contains encoded JSON
+                if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
+                    try {
+                        const tagString = settings.__dynamic__.image;
+                        const settingsMatch = tagString.match(/settings="([^"]+)"/);
+                        if (settingsMatch && settingsMatch[1]) {
+                            const decodedSettings = decodeURIComponent(settingsMatch[1]);
+                            const parsedSettings = JSON.parse(decodedSettings);
+                            if (parsedSettings.fallback) {
+                                processImageObject(parsedSettings.fallback, 'Imagen Destacada (Fallback)', widgetType);
+                            }
+                        }
+                    } catch (e) {
+                         console.warn(`Could not parse dynamic settings for widget ${item.id}`, e);
+                    }
+                }
             }
 
             // Recurse into nested elements
