@@ -5,7 +5,7 @@ import { ProductData } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
-interface Step3ConfirmProps {
+export interface Step3ConfirmProps {
   productData: ProductData;
   onValidationComplete: (isValid: boolean) => void;
 }
@@ -38,10 +38,10 @@ export function Step3Confirm({ productData, onValidationComplete }: Step3Confirm
           Al hacer clic en "Crear Producto", se realizarán las siguientes acciones en orden:
           <ul className="list-decimal list-inside mt-2 space-y-1">
             <li>
-              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {photosToUploadCount} imágen(es) a tu servidor.
+              <span className="font-semibold">Subida de Imágenes:</span> Se subirán {photosToUploadCount} imágen(es) a tu servidor. Verás el progreso en la sección de imágenes.
             </li>
             <li>
-              <span className="font-semibold">Creación en WooCommerce:</span> Se creará el producto en tu tienda con toda la información proporcionada.
+              <span className="font-semibold">Creación en WooCommerce:</span> Una vez que todas las imágenes estén subidas, se creará el producto en tu tienda con toda la información proporcionada.
             </li>
           </ul>
         </AlertDescription>

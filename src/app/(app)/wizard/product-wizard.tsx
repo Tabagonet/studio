@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/product-wizard.tsx
 
 "use client";
@@ -6,7 +5,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
-import { Step3Confirm } from './step-3-confirm';
+import { Step3Confirm, Step3ConfirmProps } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
 import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
@@ -92,6 +91,7 @@ export function ProductWizard() {
 
         finalProductData.photos.forEach(photo => {
             if (photo.file) {
+                // Use the unique client-side ID as the key for the file
                 formData.append(photo.id.toString(), photo.file);
             }
         });
