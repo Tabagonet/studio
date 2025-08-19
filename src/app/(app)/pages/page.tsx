@@ -20,9 +20,7 @@ export default function PagesManagementPage() {
   const [scores, setScores] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
-  const [pageCount, setPageCount] = useState(0);
-
+  
   const router = useRouter();
   const { toast } = useToast();
 
@@ -31,15 +29,14 @@ export default function PagesManagementPage() {
     setError(null);
     try {
         const params = new URLSearchParams({
-            page: (pagination.pageIndex + 1).toString(),
-            per_page: pagination.pageSize.toString(),
+            per_page: '200', // Fetch all pages at once for client-side grouping
         });
         if (forceRefresh) {
             params.set('cache_bust', Date.now().toString());
         }
 
         const [contentResponse, scoresResponse] = await Promise.all([
-            fetch(`/api/wordpress/pages?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`/api/wordpress/pages/search?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
             fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
@@ -49,7 +46,6 @@ export default function PagesManagementPage() {
         }
         const contentData = await contentResponse.json();
         setData(contentData.pages || []);
-        setPageCount(contentData.totalPages || 0);
 
         if (scoresResponse.ok) {
             const scoresData = await scoresResponse.json();
@@ -84,7 +80,7 @@ export default function PagesManagementPage() {
     } finally {
         setIsLoading(false);
     }
-  }, [pagination]);
+  }, []);
   
   const handleRefresh = () => {
     const user = auth.currentUser;
@@ -153,9 +149,6 @@ export default function PagesManagementPage() {
          scores={scores}
          isLoading={isLoading} 
          onDataChange={(token: string) => fetchData(token, true)}
-         pageCount={pageCount}
-         pagination={pagination}
-         setPagination={setPagination}
        />
     </div>
   );

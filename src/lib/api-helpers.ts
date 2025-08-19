@@ -34,6 +34,58 @@ interface ApiClients {
   prompts: Record<string, string>; // NEW: Will hold the applicable prompts
 }
 
+export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
+  if (!adminDb) {
+    throw new Error('Firestore admin is not initialized.');
+  }
+
+  const userDoc = await adminDb.collection('users').doc(uid).get();
+  if (!userDoc.exists) throw new Error('User not found. Cannot determine settings.');
+  const userData = userDoc.data()!;
+  
+  const [entityRef] = await getEntityRef(uid);
+  const settingsDoc = await entityRef.get();
+  
+  const settingsSource = settingsDoc.exists ? settingsDoc.data() : undefined;
+  
+  if (!settingsSource) {
+    throw new Error('No settings found for the user or their company. Please configure API connections in Settings.');
+  }
+  
+  const allConnections = settingsSource.connections || {};
+  const activeConnectionKey = settingsSource.activeConnectionKey;
+
+  // Prepare a unified prompts object
+  const finalPrompts: Record<string, string> = {};
+  for (const key in PROMPT_DEFAULTS) {
+      finalPrompts[key] = await getPromptForConnection(key, activeConnectionKey, entityRef);
+  }
+
+  if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
+    return { wooApi: null, wpApi: null, shopifyApi: null, activeConnectionKey: null, settings: settingsSource, prompts: finalPrompts };
+  }
+
+  const activeConnection = allConnections[activeConnectionKey];
+  
+  const wooApi = createWooCommerceApi({
+    url: activeConnection.wooCommerceStoreUrl,
+    consumerKey: activeConnection.wooCommerceApiKey,
+    consumerSecret: activeConnection.wooCommerceApiSecret,
+  });
+
+  const wpApi = createWordPressApi({
+    url: activeConnection.wordpressApiUrl,
+    username: activeConnection.wordpressUsername,
+    applicationPassword: activeConnection.wordpressApplicationPassword,
+  });
+
+  const shopifyApi = createShopifyApi({
+    url: activeConnection.shopifyStoreUrl,
+    accessToken: activeConnection.shopifyApiPassword,
+  });
+
+  return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource, prompts: finalPrompts };
+}
 
 /**
  * Retrieves Shopify Partner App credentials from Firestore. This function now reads
@@ -559,67 +611,6 @@ export async function getEntityRef(uid: string): Promise<[admin_types.firestore.
         return [adminDb.collection('companies').doc(userData.companyId), 'company', userData.companyId];
     }
     return [adminDb.collection('user_settings').doc(uid), 'user', uid];
-}
-
-
-/**
- * Retrieves API clients and applicable prompts based on the user's active configuration.
- *
- * @param uid The UID of the user making the request.
- * @returns An object containing initialized API clients and settings info.
- * @throws If no settings or active connection are found.
- */
-export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
-  if (!adminDb) {
-    throw new Error('Firestore admin is not initialized.');
-  }
-
-  const userDoc = await adminDb.collection('users').doc(uid).get();
-  if (!userDoc.exists) throw new Error('User not found. Cannot determine settings.');
-  const userData = userDoc.data()!;
-  
-  const [entityRef] = await getEntityRef(uid);
-  const settingsDoc = await entityRef.get();
-  
-  const settingsSource = settingsDoc.exists ? settingsDoc.data() : undefined;
-  
-  if (!settingsSource) {
-    throw new Error('No settings found for the user or their company. Please configure API connections in Settings.');
-  }
-  
-  const allConnections = settingsSource.connections || {};
-  const activeConnectionKey = settingsSource.activeConnectionKey;
-
-  // Prepare a unified prompts object
-  const finalPrompts: Record<string, string> = {};
-  for (const key in PROMPT_DEFAULTS) {
-      finalPrompts[key] = await getPromptForConnection(key, activeConnectionKey, entityRef);
-  }
-
-  if (!activeConnectionKey || !allConnections || !allConnections[activeConnectionKey]) {
-    return { wooApi: null, wpApi: null, shopifyApi: null, activeConnectionKey: null, settings: settingsSource, prompts: finalPrompts };
-  }
-
-  const activeConnection = allConnections[activeConnectionKey];
-  
-  const wooApi = createWooCommerceApi({
-    url: activeConnection.wooCommerceStoreUrl,
-    consumerKey: activeConnection.wooCommerceApiKey,
-    consumerSecret: activeConnection.wooCommerceApiSecret,
-  });
-
-  const wpApi = createWordPressApi({
-    url: activeConnection.wordpressApiUrl,
-    username: activeConnection.wordpressUsername,
-    applicationPassword: activeConnection.wordpressApplicationPassword,
-  });
-
-  const shopifyApi = createShopifyApi({
-    url: activeConnection.shopifyStoreUrl,
-    accessToken: activeConnection.shopifyApiPassword,
-  });
-
-  return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource, prompts: finalPrompts };
 }
 
 // Function to replace an image URL within Elementor data, also updating the ID.

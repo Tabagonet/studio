@@ -1,8 +1,7 @@
-
-// src/app/api/wordpress/pages/route.ts
+// src/app/api/wordpress/pages/search/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser } from '@/lib/server-api-helpers';
+import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ContentItem } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
 
@@ -41,12 +40,16 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ pages: [], totalPages: 0 });
     }
     
+    const { searchParams } = new URL(req.url);
+    const perPage = parseInt(searchParams.get('per_page') || '200', 10); // Default to a high number to fetch all
+
     let allFrontPageIds = new Set<number>();
     try {
         const settingsRes = await wpApi.get('/settings');
         const frontPageId = settingsRes.data?.page_on_front;
         if (frontPageId) {
             allFrontPageIds.add(frontPageId);
+            // This custom function might not exist on wpApi, check for it
             if (typeof (wpApi as any).pll_get_post_translations === 'function') {
                 const translations = await (wpApi as any).pll_get_post_translations(frontPageId);
                 Object.values(translations).forEach(id => allFrontPageIds.add(id as number));
@@ -56,13 +59,12 @@ export async function GET(req: NextRequest) {
         console.warn("Could not retrieve site settings to determine front page.");
     }
     
-    // Fetch all pages at once
     const allPages: any[] = [];
     let currentPage = 1;
     while (true) {
         const response = await wpApi.get('pages', {
             params: {
-                per_page: 100,
+                per_page: perPage,
                 page: currentPage,
                 context: 'view',
                 _embed: false,
@@ -92,7 +94,7 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch pages.';
-    const status = error.message?.includes('not configured') ? 400 : (error.response?.status || 500);
+    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
     console.error("Critical error in pages API:", error);
     return NextResponse.json({ error: errorMessage }, { status });
   }

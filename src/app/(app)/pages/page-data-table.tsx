@@ -44,9 +44,6 @@ interface PageDataTableProps {
   scores: Record<number, number>;
   isLoading: boolean;
   onDataChange: (token: string, force: boolean) => void;
-  pageCount: number;
-  pagination: { pageIndex: number; pageSize: number };
-  setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
 }
 
 const LANGUAGE_MAP: { [key: string]: string } = {
@@ -63,9 +60,6 @@ export function PageDataTable({
   scores,
   isLoading,
   onDataChange,
-  pageCount,
-  pagination,
-  setPagination,
 }: PageDataTableProps) {
   const router = useRouter();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
@@ -73,6 +67,12 @@ export function PageDataTable({
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
   const [isActionLoading, setIsActionLoading] = React.useState(false);
+  
+  const [pagination, setPagination] = React.useState({
+    pageIndex: 0,
+    pageSize: 10,
+  });
+
   const { toast } = useToast();
 
   const tableData = React.useMemo((): HierarchicalContentItem[] => {
@@ -155,8 +155,7 @@ export function PageDataTable({
       rowSelection,
       pagination,
     },
-    pageCount: pageCount,
-    manualPagination: true,
+    pageCount: -1,
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
@@ -515,7 +514,7 @@ export function PageDataTable({
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
-          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
+          {table.getRowModel().rows.length} fila(s) seleccionadas.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
