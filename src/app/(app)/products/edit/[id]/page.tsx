@@ -43,7 +43,7 @@ function EditPageContent() {
   const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const [isSuggestingLinks, setIsSuggestingLinks] = useState<LinkSuggestion[]>([]);
+  const [isSuggestingLinks, setIsSuggestingLinks] = useState(false);
   const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
 
   const [isGenerating, setIsGenerating] = useState(false);
@@ -69,7 +69,6 @@ function EditPageContent() {
   const handleCroppedImageSave = (croppedImageFile: File) => {
     if (!imageToCrop) return;
 
-    // Check if the image being cropped was an existing one (its ID is a number)
     const isExistingImage = typeof imageToCrop.id === 'number';
     
     updateProductData(prev => {
@@ -78,11 +77,9 @@ function EditPageContent() {
             if (p.id === imageToCrop.id) {
                 return {
                     ...p,
-                    file: croppedImageFile, // The new cropped file
+                    file: croppedImageFile,
                     name: croppedImageFile.name,
-                    previewUrl: URL.createObjectURL(croppedImageFile), // The new preview
-                    // If it was an existing image, replace its ID with a special key
-                    // to signal to the backend that this is a replacement.
+                    previewUrl: URL.createObjectURL(croppedImageFile),
                     id: isExistingImage ? `replace_${imageToCrop.id}` : p.id,
                 };
             }
@@ -689,7 +686,7 @@ function EditPageContent() {
                             <div className="border-t pt-6 space-y-6">
                                 <div>
                                     <Label htmlFor="shortDescription">Descripción Corta</Label>
-                                    <RichTextEditor content={product.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={isSuggestingLinks ? undefined : handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/>
+                                    <RichTextEditor content={product.shortDescription} onChange={handleShortDescriptionChange} onInsertImage={() => setIsImageDialogOpen(true)} onSuggestLinks={handleSuggestLinks} placeholder="Un resumen atractivo y conciso de tu producto..." size="small"/>
                                 </div>
                                 <div>
                                     <Label htmlFor="longDescription">Descripción Larga</Label>

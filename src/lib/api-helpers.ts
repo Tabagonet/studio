@@ -157,6 +157,12 @@ export function extractElementorWidgets(elementorDataString: string): ExtractedW
     }
 }
 
+
+/**
+ * Recursively traverses Elementor's data structure to collect all user-visible text content.
+ * @param data The 'elements' array or any nested object/array from Elementor's data.
+ * @param texts The array to push found texts into.
+ */
 function collectElementorTextsRecursive(data: any, texts: string[]): void {
     if (!data) return;
 
@@ -196,7 +202,7 @@ export function collectElementorTexts(elements: any[]): string[] {
 export function replaceElementorTexts(data: any, translatedTextsOrMap: string[] | Map<string, string>): any {
     let textIndex = 0;
     
-    function traverseAndReplace(elements: any[]): any[] {
+    function traverse(elements: any[]): any[] {
         return elements.map(element => {
             if (!element || typeof element !== 'object') return element;
 
@@ -234,14 +240,14 @@ export function replaceElementorTexts(data: any, translatedTextsOrMap: string[] 
             }
 
             if (newElement.elements && Array.isArray(newElement.elements)) {
-                newElement.elements = traverseAndReplace(newElement.elements);
+                newElement.elements = traverse(newElement.elements);
             }
 
             return newElement;
         });
     }
 
-    return traverseAndReplace(data);
+    return traverse(data);
 }
 
 export function findElementorImageContext(elementorData: any[]): {
@@ -646,4 +652,94 @@ export async function getEntityRef(uid: string): Promise<[admin_types.firestore.
         return [adminDb.collection('companies').doc(userData.companyId), 'company', userData.companyId];
     }
     return [adminDb.collection('user_settings').doc(uid), 'user', uid];
+}
+
+// Function to replace an image URL within Elementor data, also updating the ID.
+export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: string, newId: number): { replaced: boolean, data: any } {
+    let replaced = false;
+
+    function traverse(obj: any): any {
+        if (!obj) return obj;
+
+        if (Array.isArray(obj)) {
+            return obj.map(item => traverse(item));
+        }
+
+        if (typeof obj === 'object') {
+            const newObj: { [key: string]: any } = {};
+            let isImageObject = false;
+
+            if (typeof obj.url === 'string' && obj.url === oldUrl) {
+                isImageObject = true;
+            }
+
+            if (isImageObject) {
+                 newObj.url = newUrl;
+                 newObj.id = newId;
+                 replaced = true;
+                 for (const key in obj) {
+                     if (key !== 'url' && key !== 'id') {
+                         newObj[key] = obj[key];
+                     }
+                 }
+            } else {
+                for (const key in obj) {
+                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+                         newObj[key] = traverse(obj[key]);
+                    }
+                }
+            }
+            return newObj;
+        }
+        return obj;
+    }
+
+    const newData = traverse(data);
+    return { replaced, data: newData };
+}
+
+
+/**
+ * Recursively finds image URLs and their context in Elementor JSON data.
+ * This is a more robust version that checks multiple common keys for images.
+ * @param {any} data The Elementor data (elements array, section, column, etc.).
+ * @returns {Array} An array of objects, each containing the image URL, ID, width, and height.
+ */
+export function findImageUrlsInElementor(data: any): { url: string; id: number | null, width: number | null, height: number | null }[] {
+    const images: { url: string; id: number | null, width: number | null, height: number | null }[] = [];
+    if (!data) return images;
+
+    if (Array.isArray(data)) {
+        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
+    } else if (typeof data === 'object' && data !== null) {
+        
+        const imageKeys = ['image', 'background_image', 'background_overlay_image', 'background_a_image', 'background_b_image', 'hover_image'];
+        const repeaterKeys = ['slides', 'gallery', 'carousel'];
+
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+                if (imageKeys.includes(key) && typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
+                    if (!value.url.includes('placeholder.png')) {
+                        images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
+                    }
+                } else if (key === 'gallery' && Array.isArray(value)) { // Specifically handle 'gallery' widget
+                    value.forEach(galleryImage => {
+                        if (typeof galleryImage === 'object' && galleryImage !== null && typeof galleryImage.url === 'string' && galleryImage.url) {
+                            if (!galleryImage.url.includes('placeholder.png')) {
+                                images.push({ url: galleryImage.url, id: galleryImage.id || null, width: null, height: null });
+                            }
+                        }
+                    });
+                } else if (repeaterKeys.includes(key) && Array.isArray(value)) {
+                    value.forEach(item => images.push(...findImageUrlsInElementor(item)));
+                } else if (typeof value === 'object' && value !== null) {
+                    images.push(...findImageUrlsInElementor(value));
+                }
+            }
+        }
+    }
+    
+    // Return a unique set of images based on URL
+    return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
