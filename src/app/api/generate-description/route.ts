@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.array(z.string()).optional(), // Corrected to array of strings
+        tags: z.array(z.string()).optional(),
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).optional().default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
@@ -136,4 +136,6 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
         errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);
     }
-    return NextResponse.json({ error: errorMessage }, { status: 5
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  }
+}
