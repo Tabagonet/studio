@@ -96,7 +96,7 @@ function EditPageContent() {
     };
     handlePhotosChange([updatedPhoto]);
     setImageToCrop(null);
-    toast({ title: "Imagen Recortada", description: "La imagen destacada ha sido actualizada." });
+    toast({ title: "Imagen Recortada", description: "La imagen destacada ha sido actualizada. Guarda los cambios para aplicarla." });
   };
 
   const handleInsertImage = async () => {
@@ -198,21 +198,19 @@ function EditPageContent() {
         const token = await user.getIdToken();
         const formData = new FormData();
         
-        // Append all simple text/data fields to productData
-        const productDataPayload = {
+        const postDataPayload = {
             title: post.title,
             content: post.content,
             status: post.status,
             author: post.author,
             categories: post.categories,
             tags: post.tags,
-            featured_media: post.featuredImageId, // Send original ID
+            featured_media: post.featuredImageId,
         };
-        formData.append('postData', JSON.stringify(productDataPayload));
+        formData.append('postData', JSON.stringify(postDataPayload));
 
-        // If a new/cropped image file exists, append it. The backend will handle the replacement logic.
         if (post.featuredImage?.file) {
-            formData.append('featuredImageFile', post.featuredImage.file);
+            formData.append('featuredImageFile', post.featuredImage.file, post.featuredImage.name);
         }
         
         const response = await fetch(`/api/wordpress/posts/${postId}`, {
@@ -227,13 +225,14 @@ function EditPageContent() {
         }
         
         toast({ title: '¡Éxito!', description: `La entrada ha sido actualizada en WordPress.` });
+        fetchInitialData(); // Re-fetch data to get the new state
 
         if (syncFullContent && post.translations && Object.keys(post.translations).length > 1) {
             toast({ title: "Sincronizando contenido...", description: "Traduciendo y actualizando el contenido en las otras versiones. Esto puede tardar." });
             
             const syncPayload = {
                 sourcePostId: postId,
-                postType: 'Post',
+                postType: 'Post' as const,
                 translations: post.translations,
                 title: post.title,
                 content: post.content,
@@ -355,62 +354,64 @@ function EditPageContent() {
   };
 
 
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      setIsLoading(true);
-      setError(null);
-      const user = auth.currentUser;
-      if (!user) {
-        setError('Authentication required.');
-        setIsLoading(false);
-        return;
-      }
-      try {
-        const token = await user.getIdToken();
-        const [postResponse, categoriesResponse, authorsResponse] = await Promise.all([
-          fetch(`/api/wordpress/posts/${postId}?context=edit`, { headers: { 'Authorization': `Bearer ${token}` }}),
-          fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }}),
-          fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }})
-        ]);
+  const fetchInitialData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    const user = auth.currentUser;
+    if (!user) {
+      setError('Authentication required.');
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const token = await user.getIdToken();
+      const [postResponse, categoriesResponse, authorsResponse] = await Promise.all([
+        fetch(`/api/wordpress/posts/${postId}?context=edit`, { headers: { 'Authorization': `Bearer ${token}` }}),
+        fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` }}),
+        fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` }})
+      ]);
 
-        if (!postResponse.ok) {
-          throw new Error(`Failed to fetch post data: ${await postResponse.text()}`);
-        }
-        const postData = await postResponse.json();
-        
-        if (categoriesResponse.ok) setAllCategories(await categoriesResponse.json());
-        if (authorsResponse.ok) setAuthors(await authorsResponse.json());
-        
-        setPost({
-          title: postData.title.rendered || '',
-          content: postData.content.rendered || '',
-          status: postData.status || 'draft',
-          author: postData.author || null,
-          categories: postData.categories || [],
-          tags: postData._embedded?.['wp:term']?.[1]?.map((t: any) => t.name).join(', ') || '',
-          featuredImageId: postData.featured_media || null,
-          featuredImage: postData.featured_image_url ? {
-              id: postData.featured_media,
-              previewUrl: postData.featured_image_url,
-              name: 'Imagen destacada',
-              status: 'completed',
-              progress: 100,
-          } : null,
-          isElementor: postData.isElementor || false,
-          elementorEditLink: postData.elementorEditLink || null,
-          link: postData.link,
-          lang: postData.lang || 'es',
-          translations: postData.translations || {},
-        });
-
-      } catch (e: any) {
-        setError(e.message);
-      } finally {
-        setIsLoading(false);
+      if (!postResponse.ok) {
+        throw new Error(`Failed to fetch post data: ${await postResponse.text()}`);
       }
-    };
-    if(postId) fetchInitialData();
+      const postData = await postResponse.json();
+      
+      if (categoriesResponse.ok) setAllCategories(await categoriesResponse.json());
+      if (authorsResponse.ok) setAuthors(await authorsResponse.json());
+      
+      setPost({
+        title: postData.title.rendered || '',
+        content: postData.content.rendered || '',
+        status: postData.status || 'draft',
+        author: postData.author || null,
+        categories: postData.categories || [],
+        tags: postData._embedded?.['wp:term']?.[1]?.map((t: any) => t.name).join(', ') || '',
+        featuredImageId: postData.featured_media || null,
+        featuredImage: postData.featured_image_url ? {
+            id: postData.featured_media,
+            previewUrl: postData.featured_image_url,
+            name: 'Imagen destacada',
+            status: 'completed',
+            progress: 100,
+        } : null,
+        isElementor: postData.isElementor || false,
+        elementorEditLink: postData.elementorEditLink || null,
+        link: postData.link,
+        lang: postData.lang || 'es',
+        translations: postData.translations || {},
+      });
+
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setIsLoading(false);
+    }
   }, [postId]);
+  
+
+  useEffect(() => {
+    if(postId) fetchInitialData();
+  }, [postId, fetchInitialData]);
   
 
   if (isLoading) {
