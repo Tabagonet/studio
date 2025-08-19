@@ -152,8 +152,8 @@ export function ImageCropperDialog({
     }
   };
   
-  const cropperAspectRatio = isAspectRatioLocked
-    ? (imageToCrop && imageToCrop.width && imageToCrop.height ? Number(imageToCrop.width) / Number(imageToCrop.height) : undefined)
+  const cropperAspectRatio = (imageToCrop && imageToCrop.width && imageToCrop.height)
+    ? Number(imageToCrop.width) / Number(imageToCrop.height)
     : undefined;
 
   return (
@@ -198,14 +198,14 @@ export function ImageCropperDialog({
                             id="lock-aspect-ratio"
                             checked={isAspectRatioLocked}
                             onCheckedChange={(checked) => setIsAspectRatioLocked(!!checked)}
-                            disabled={!imageToCrop?.width || !imageToCrop?.height}
+                            disabled={!cropperAspectRatio}
                         />
                         <Label htmlFor="lock-aspect-ratio" className="text-sm font-normal cursor-pointer">
                             Mantener proporción de aspecto
                         </Label>
                     </div>
                      <p className="text-xs text-muted-foreground">
-                        {(!imageToCrop?.width || !imageToCrop?.height) 
+                        {(!cropperAspectRatio) 
                           ? "No se detectaron dimensiones originales para bloquear la proporción."
                           : isAspectRatioLocked 
                           ? "El recorte mantendrá la proporción original de la imagen." 
