@@ -12,7 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Loader2, Crop, UploadCloud, RotateCw, Edit } from 'lucide-react';
 import Cropper from 'react-cropper';
 import 'cropperjs/dist/cropper.css';
-import type { ContentImage } from '@/lib/types';
+import type { ContentImage, ProductPhoto } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { auth } from '@/lib/firebase';
 import axios from 'axios';
@@ -20,7 +20,8 @@ import axios from 'axios';
 interface ImageCropperDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  imageToCrop: ContentImage | null;
+  // Can accept a remote image or a local file wrapper
+  imageToCrop: ContentImage | ProductPhoto | null; 
   onSave: (croppedImageFile: File) => void;
   isSaving: boolean;
 }
@@ -42,6 +43,7 @@ export function ImageCropperDialog({
   const [originalFilename, setOriginalFilename] = useState<string>('cropped-image.png');
   const [isAspectRatioLocked, setIsAspectRatioLocked] = useState(true);
   const [isOriginalLoading, setIsOriginalLoading] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true); // To check if we need to auto-load
 
   const cropperRef = useRef<any>(null);
   const { toast } = useToast();
@@ -52,24 +54,74 @@ export function ImageCropperDialog({
     if (imageToCrop?.width && imageToCrop?.height && !isNaN(Number(imageToCrop.width)) && !isNaN(Number(imageToCrop.height)) && Number(imageToCrop.height) !== 0) {
       return Number(imageToCrop.width) / Number(imageToCrop.height);
     }
-    return 1; // Default to 1:1 if dimensions are invalid
+    // Fallback to a default aspect ratio if dimensions are not available
+    return 1;
   })();
 
-  // Reset state when dialog closes or image changes
+  const handleLoadOriginal = async () => {
+    if (!imageToCrop?.src && !('previewUrl' in imageToCrop && imageToCrop.previewUrl)) {
+        toast({ title: 'No hay imagen de origen', variant: 'destructive'});
+        return;
+    }
+
+    setIsOriginalLoading(true);
+    try {
+        const imageUrlToLoad = imageToCrop.src || (imageToCrop as ProductPhoto).previewUrl;
+        
+        if (imageUrlToLoad.startsWith('blob:')) {
+            setSourceImage(imageUrlToLoad);
+            setOriginalFilename((imageToCrop as ProductPhoto).name || 'image.png');
+            return;
+        }
+
+        const user = auth.currentUser; if (!user) throw new Error("No autenticado.");
+        const token = await user.getIdToken();
+
+        const response = await axios.post('/api/process-image', { imageUrl: imageUrlToLoad }, { headers: { 'Authorization': `Bearer ${token}` }, responseType: 'blob' });
+        const blob = response.data;
+        const dataUrl = await blobToDataURL(blob);
+        
+        setSourceImage(dataUrl);
+        setOriginalFilename(imageUrlToLoad.split('/').pop()?.split('?')[0] || 'original.png');
+    } catch (e) {
+        console.error("No se pudo cargar la imagen original:", e);
+        toast({ title: 'Error al Cargar Imagen', description: 'No se pudo obtener la imagen original. Puede que ya no esté disponible o haya un problema de red.', variant: 'destructive' });
+        setSourceImage(null);
+    } finally {
+        setIsOriginalLoading(false);
+    }
+  };
+
+  // Effect to manage state when dialog opens/closes or image prop changes
   useEffect(() => {
-    if (!open || !imageToCrop) {
+    if (open && imageToCrop) {
+        // If an image object is passed, it means we are in "edit" mode (e.g., from wizard).
+        // Load it directly into the cropper.
+        if (('file' in imageToCrop && imageToCrop.file) || ('previewUrl' in imageToCrop && imageToCrop.previewUrl)) {
+            const photo = imageToCrop as ProductPhoto;
+            setSourceImage(photo.previewUrl);
+            setOriginalFilename(photo.name);
+            setInitialLoad(false);
+        } else {
+             // We are in "replace" mode, so show the options.
+             setInitialLoad(true);
+             setSourceImage(null);
+        }
+        setIsAspectRatioLocked(true);
+    } else {
       setSourceImage(null);
       setOriginalFilename('cropped-image.png');
       setIsAspectRatioLocked(true);
+      setInitialLoad(true);
     }
   }, [open, imageToCrop]);
+
 
   // Update Cropper when aspect ratio lock changes
   useEffect(() => {
     if (cropperRef.current?.cropper && sourceImage) {
       const cropper = cropperRef.current.cropper;
       cropper.setAspectRatio(isAspectRatioLocked ? cropperAspectRatio : NaN);
-      cropper.reset(); // Reset crop box to ensure free cropping works
     }
   }, [isAspectRatioLocked, cropperAspectRatio, sourceImage]);
 
@@ -88,37 +140,6 @@ export function ImageCropperDialog({
         setSourceImage(reader.result as string);
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleLoadOriginal = async () => {
-    if (!imageToCrop?.src) return;
-    setIsOriginalLoading(true);
-    try {
-      const user = auth.currentUser;
-      if (!user) throw new Error("No autenticado.");
-      const token = await user.getIdToken();
-
-      const response = await axios.post('/api/process-image',
-        { imageUrl: imageToCrop.src },
-        {
-          headers: { 'Authorization': `Bearer ${token}` },
-          responseType: 'blob'
-        }
-      );
-
-      const blob = response.data;
-      const dataUrl = await blobToDataURL(blob);
-      setSourceImage(dataUrl);
-
-      const filename = imageToCrop.src.split('/').pop()?.split('?')[0] || 'original.png';
-      setOriginalFilename(filename);
-    } catch (e) {
-      console.error("No se pudo cargar la imagen original:", e);
-      toast({ title: 'Error al Cargar Imagen', description: 'No se pudo obtener la imagen original. Puede que ya no esté disponible o haya un problema de red.', variant: 'destructive' });
-      setSourceImage(null);
-    } finally {
-      setIsOriginalLoading(false);
     }
   };
 
@@ -175,8 +196,25 @@ export function ImageCropperDialog({
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start py-4">
           <div className="space-y-3">
-            <h4 className="font-semibold text-sm">1. Elige una Imagen</h4>
-            <Input
+             <h4 className="font-semibold text-sm">1. Origen de la Imagen</h4>
+             {!sourceImage && (
+              <div className="space-y-3">
+                <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full" disabled={isSaving}>
+                  <UploadCloud className="mr-2 h-4 w-4" />
+                  Subir nueva imagen...
+                </Button>
+                {imageToCrop && (
+                  <div className="border rounded-md p-3 space-y-2 bg-muted/50">
+                    <p className="text-xs text-muted-foreground">O puedes editar la imagen que ya existe:</p>
+                    <Button variant="secondary" size="sm" onClick={handleLoadOriginal} className="w-full" disabled={isOriginalLoading}>
+                      {isOriginalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit className="mr-2 h-4 w-4" />}
+                      Cargar y editar original
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+             <Input
               id="new-image-upload"
               type="file"
               accept="image/*"
@@ -185,22 +223,9 @@ export function ImageCropperDialog({
               className="hidden"
               ref={fileInputRef}
             />
-            <Button onClick={() => fileInputRef.current?.click()} variant="outline" className="w-full" disabled={isSaving}>
-              <UploadCloud className="mr-2 h-4 w-4" />
-              Subir nueva imagen...
-            </Button>
-            {imageToCrop && (
-              <div className="border rounded-md p-3 space-y-2 bg-muted/50">
-                <p className="text-xs text-muted-foreground">O puedes editar la imagen original:</p>
-                <Button variant="secondary" size="sm" onClick={handleLoadOriginal} className="w-full" disabled={isOriginalLoading}>
-                  {isOriginalLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Edit className="mr-2 h-4 w-4" />}
-                  Cargar y editar original
-                </Button>
-              </div>
-            )}
             {sourceImage && (
               <div className="border rounded-md p-3 space-y-2">
-                <div className="flex items-center space-x-2">
+                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="lock-aspect-ratio"
                     checked={isAspectRatioLocked}
@@ -215,6 +240,7 @@ export function ImageCropperDialog({
                     ? `El recorte mantendrá la proporción ${cropperAspectRatio.toFixed(2)}:1.`
                     : 'Recorte libre: puedes definir cualquier proporción.'}
                 </p>
+                <Button onClick={() => setSourceImage(null)} variant="link" className="p-0 h-auto text-xs">Cambiar imagen</Button>
               </div>
             )}
           </div>
@@ -236,7 +262,7 @@ export function ImageCropperDialog({
                   autoCropArea={0.8}
                   cropBoxMovable={true}
                   cropBoxResizable={true}
-                  key={sourceImage + (isAspectRatioLocked ? 'locked' : 'free')} // Force re-render
+                  key={sourceImage + isAspectRatioLocked}
                 />
               ) : (
                 <div className="text-center text-muted-foreground p-4">
