@@ -2,7 +2,7 @@
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, findElementorImageContext } from '@/lib/api-helpers';
+import { getApiClientsForUser, findElementorImageContext, enrichImageWithMediaData } from '@/lib/api-helpers';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 
@@ -91,11 +91,11 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
         });
     });
 
-    // Enrich with scraped data only if metadata is missing
+    // Enrich with scraped data
     scrapedImages.forEach(img => {
-        if (finalImageMap.has(img.src)) {
-            const existingImg = finalImageMap.get(img.src);
-            // Only update alt, width, height if not provided by Elementor
+        const existingImg = finalImageMap.get(img.src);
+        if (existingImg) {
+            // Fill in missing details from scraped data
             existingImg.alt = existingImg.alt ?? img.alt;
             existingImg.mediaId = existingImg.mediaId ?? img.mediaId;
             existingImg.width = existingImg.width ?? img.width;
@@ -115,10 +115,16 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
         }
     });
 
+    // 4. Final enrichment pass using WordPress API for definitive data
+    const enrichedImages = await Promise.all(
+      Array.from(finalImageMap.values()).map(img => enrichImageWithMediaData(img, wpApi))
+    );
+
+
     return {
         id: post.id,
         title: post.name || post.title.rendered,
-        images: Array.from(finalImageMap.values())
+        images: enrichedImages,
     };
 }
 
