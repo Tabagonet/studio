@@ -247,46 +247,73 @@ export function replaceElementorTexts(data: any, widgetUpdates: Map<string, stri
 }
 
 
-export function findElementorImageContext(elements: any[], imageUrl: string): string {
-    let context = '';
-    if (!elements || !Array.isArray(elements)) return context;
+/**
+ * Recursively finds image URLs, IDs, and context in Elementor JSON data.
+ * @param data The Elementor data (elements array, section, column, etc.).
+ * @returns An array of objects, each containing image details.
+ */
+export function findElementorImageContext(elementorData: any[]): { url: string; id: number | null, width: number | null, height: number | null, context: string, widgetType: string }[] {
+    const images: { url: string; id: number | null, width: number | null, height: number | null, context: string, widgetType: string }[] = [];
+    if (!elementorData || !Array.isArray(elementorData)) return images;
 
     function traverse(items: any[]) {
         for (const item of items) {
-            if (context) return;
             if (!item || typeof item !== 'object') continue;
 
             const settings = item.settings;
-            if (settings) {
-                // Handle image box widgets like 'the7_image_box_widget'
-                if (item.widgetType?.includes('image_box') && settings.image?.url === imageUrl) {
-                    context = settings.description_text?.replace(/<[^>]+>/g, ' ').trim() || settings.title_text || '';
-                } 
-                // Handle standard image widgets
-                else if (item.widgetType === 'image' && settings.image?.url === imageUrl) {
-                    context = settings.caption?.replace(/<[^>]+>/g, ' ').trim() || settings.title_text || '';
-                }
-                // Handle slider widgets
-                else if (item.widgetType === 'slides' && settings.slides) {
-                    const slide = settings.slides.find((s: any) => s.background_image?.url === imageUrl);
-                    if (slide) {
-                        context = slide.description?.replace(/<[^>]+>/g, ' ').trim() || slide.heading || '';
+            const widgetType = item.widgetType || 'unknown';
+
+            // Standard image widget
+            if (widgetType === 'image' && settings?.image?.url) {
+                images.push({ url: settings.image.url, id: settings.image.id || null, width: settings.image.width || null, height: settings.image.height || null, context: `Widget: ${widgetType}`, widgetType });
+            }
+
+            // Background images (for sections, columns)
+            if (settings?.background_image?.url) {
+                images.push({ url: settings.background_image.url, id: settings.background_image.id || null, width: null, height: null, context: `Fondo de ${item.elType}`, widgetType: `background` });
+            }
+             if (settings?.background_overlay_image?.url) {
+                images.push({ url: settings.background_overlay_image.url, id: settings.background_overlay_image.id || null, width: null, height: null, context: `Fondo Superpuesto de ${item.elType}`, widgetType: `background-overlay` });
+            }
+
+            // Specific widgets (sliders, flip boxes, etc.)
+            if (widgetType === 'slides' && Array.isArray(settings?.slides)) {
+                settings.slides.forEach((slide: any) => {
+                    if (slide.background_image?.url) {
+                        images.push({ url: slide.background_image.url, id: slide.background_image.id || null, width: null, height: null, context: slide.heading || `Slide en ${widgetType}`, widgetType });
                     }
-                }
-                
-                if (context) return;
+                });
+            }
+
+            if (widgetType === 'flip-box' && settings) {
+                if (settings.background_a_image?.url) images.push({ url: settings.background_a_image.url, id: settings.background_a_image.id || null, width: null, height: null, context: 'Flip Box (Lado A)', widgetType });
+                if (settings.background_b_image?.url) images.push({ url: settings.background_b_image.url, id: settings.background_b_image.id || null, width: null, height: null, context: 'Flip Box (Lado B)', widgetType });
             }
             
+            // The7 Image Box Widget
+            if (widgetType === 'the7_image_box_widget' && settings?.image?.url) {
+                 images.push({ url: settings.image.url, id: settings.image.id || null, width: null, height: null, context: settings.title_text || `Widget: ${widgetType}`, widgetType });
+            }
+
+            // Dynamic "Featured Image" widget with fallback
+            if (widgetType === 'theme-post-featured-image' && settings) {
+                 const fallback = settings.image?.fallback || settings.fallback;
+                 if (fallback?.url) {
+                     images.push({ url: fallback.url, id: fallback.id || null, width: null, height: null, context: 'Imagen Destacada (Fallback)', widgetType });
+                 }
+            }
+
             // Recurse into nested elements
-            if (item.elements && item.elements.length > 0) {
+            if (item.elements && Array.isArray(item.elements) && item.elements.length > 0) {
                 traverse(item.elements);
             }
         }
     }
 
-    traverse(elements);
-    return context;
+    traverse(elementorData);
+    return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
+
 
 export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
     const images: { url: string; }[] = [];
@@ -655,50 +682,4 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
 
     const newData = traverse(data);
     return { replaced, data: newData };
-}
-
-
-/**
- * Recursively finds image URLs and their context in Elementor JSON data.
- * This is a more robust version that checks multiple common keys for images.
- * @param {any} data The Elementor data (elements array, section, column, etc.).
- * @returns {Array} An array of objects, each containing the image URL, ID, width, and height.
- */
-export function findImageUrlsInElementor(data: any): { url: string; id: number | null, width: number | null, height: number | null }[] {
-    const images: { url: string; id: number | null, width: number | null, height: number | null }[] = [];
-    if (!data) return images;
-
-    if (Array.isArray(data)) {
-        data.forEach(item => images.push(...findImageUrlsInElementor(item)));
-    } else if (typeof data === 'object' && data !== null) {
-        
-        const imageKeys = ['image', 'background_image', 'background_overlay_image', 'background_a_image', 'background_b_image', 'hover_image'];
-        const repeaterKeys = ['slides', 'gallery', 'carousel'];
-
-        for (const key in data) {
-            if (Object.prototype.hasOwnProperty.call(data, key)) {
-                const value = data[key];
-                if (imageKeys.includes(key) && typeof value === 'object' && value !== null && typeof value.url === 'string' && value.url) {
-                    if (!value.url.includes('placeholder.png')) {
-                        images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
-                    }
-                } else if (key === 'gallery' && Array.isArray(value)) { // Specifically handle 'gallery' widget
-                    value.forEach(galleryImage => {
-                        if (typeof galleryImage === 'object' && galleryImage !== null && typeof galleryImage.url === 'string' && galleryImage.url) {
-                            if (!galleryImage.url.includes('placeholder.png')) {
-                                images.push({ url: galleryImage.url, id: galleryImage.id || null, width: null, height: null });
-                            }
-                        }
-                    });
-                } else if (repeaterKeys.includes(key) && Array.isArray(value)) {
-                    value.forEach(item => images.push(...findImageUrlsInElementor(item)));
-                } else if (typeof value === 'object' && value !== null) {
-                    images.push(...findImageUrlsInElementor(value));
-                }
-            }
-        }
-    }
-    
-    // Return a unique set of images based on URL
-    return Array.from(new Map(images.map(img => [img.url, img])).values());
 }

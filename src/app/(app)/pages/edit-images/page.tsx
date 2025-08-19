@@ -1,4 +1,3 @@
-
 // This is a new file for the batch image editor.
 "use client";
 
@@ -18,6 +17,7 @@ import { auth } from '@/lib/firebase';
 import type { ContentImage } from '@/lib/types';
 import { Checkbox } from '@/components/ui/checkbox';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Badge } from '@/components/ui/badge';
 
 interface GroupedContent {
   id: number;
@@ -177,6 +177,7 @@ function BatchImageEditor() {
                                                     <p className="text-sm font-medium text-foreground truncate" title={img.src}>...{img.src.slice(-50)}</p>
                                                      <p className="text-xs text-muted-foreground">Alt: <span className="italic">{img.alt || "(vacío)"}</span></p>
                                                      <p className="text-xs text-muted-foreground">Tamaño: <span className="font-mono">{img.width && img.height ? `${img.width}x${img.height}px` : 'N/A'}</span></p>
+                                                     {img.widgetType && <Badge variant="outline" className="mt-1 capitalize">{img.widgetType.replace(/_/g, ' ')}</Badge>}
                                                 </div>
                                                 <Button 
                                                     size="sm"

@@ -1,10 +1,9 @@
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, findElementorImageContext, findBeaverBuilderImages } from '@/lib/api-helpers';
+import { getApiClientsForUser, findElementorImageContext } from '@/lib/api-helpers';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
-import type { ExtractedWidget } from '@/lib/types';
 
 
 export const dynamic = 'force-dynamic';
@@ -22,68 +21,21 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     const { data } = await apiToUse.get(endpoint, { params: { context: 'edit' } });
     post = data;
 
-    let scrapedImages: any[] = [];
     const metaToCheck = post.meta_data ? post.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) : post.meta;
     
-    const isElementor = !!metaToCheck?._elementor_data;
-    const isBeBuilder = !!metaToCheck?.mfn_builder_items;
-
-    if (isElementor) {
-        const elementorData = JSON.parse(metaToCheck._elementor_data || '[]');
-        const imageUrlsData = findElementorImageContext(elementorData);
-        
-        if (imageUrlsData.length > 0) {
-            scrapedImages = imageUrlsData.map(imgData => ({
-                id: imgData.url,
-                src: imgData.url,
-                alt: '',
-                mediaId: imgData.id,
-                width: imgData.width,
-                height: imgData.height,
-                context: imgData.context,
-                widgetType: imgData.widgetType,
-            }));
-
-            const mediaIdsToFetch = imageUrlsData.map(img => img.id).filter((id): id is number => id !== null);
-            if (mediaIdsToFetch.length > 0) {
-                try {
-                    const mediaResponse = await wpApi.get('/media', {
-                        params: { include: [...new Set(mediaIdsToFetch)].join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
-                    });
-                    if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                        const mediaDataMap = new Map<number, any>();
-                        mediaResponse.data.forEach((mediaItem: any) => { mediaDataMap.set(mediaItem.id, mediaItem); });
-                        scrapedImages.forEach(img => {
-                            if (img.mediaId && mediaDataMap.has(img.mediaId)) {
-                                const mediaItem = mediaDataMap.get(img.mediaId);
-                                img.alt = mediaItem.alt_text || '';
-                                img.width = img.width || mediaItem.media_details?.width || null;
-                                img.height = img.height || mediaItem.media_details?.height || null;
-                            }
-                        });
-                    }
-                } catch (mediaError) {
-                    console.warn(`Could not fetch media details for some Elementor images:`, mediaError);
-                }
-            }
-        }
-    } else if (isBeBuilder) {
-        const beBuilderData = JSON.parse(metaToCheck.mfn_builder_items || '[]');
-        const imageUrlsData = findBeaverBuilderImages(beBuilderData);
-         if (imageUrlsData.length > 0) {
-            scrapedImages = imageUrlsData.map(imgData => ({
-                id: imgData.url,
-                src: imgData.url,
-                alt: '',
-                mediaId: null,
-                width: null,
-                height: null,
-                context: null,
-                widgetType: 'beaver_builder_image',
-            }));
+    // 1. Get images from Elementor JSON data if it exists
+    let elementorImages: any[] = [];
+    if (metaToCheck?._elementor_data) {
+        try {
+            const elementorData = JSON.parse(metaToCheck._elementor_data);
+            elementorImages = findElementorImageContext(elementorData);
+        } catch (e) {
+            console.warn(`Could not parse Elementor data for post ${id}`);
         }
     }
     
+    // 2. Get images by scraping the live URL to capture everything rendered in HTML
+    let scrapedImages: any[] = [];
     const pageLink = post.permalink || post.link;
     if (pageLink && wpApi) {
         try {
@@ -91,64 +43,51 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
             const html = scrapeResponse.data;
             const $ = cheerio.load(html);
             const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
-            $contentArea.find('header, footer, nav').remove();
+            $contentArea.find('header, footer, nav, script, style, noscript').remove();
 
-            const foundImageIds = new Set<number>();
             const imageMap = new Map<string, any>();
 
             $contentArea.find('img').each((i, el) => {
-                const src = $(el).attr('src');
-                if (!src) return;
+                const src = $(el).attr('data-src') || $(el).attr('src');
+                if (!src || src.includes('data:image')) return;
 
-                const classList = $(el).attr('class') || '';
-                const match = classList.match(/wp-image-(\d+)/);
-                const mediaId = match ? parseInt(match[1], 10) : null;
-                if (mediaId) foundImageIds.add(mediaId);
-
-                if (!imageMap.has(src)) {
-                    imageMap.set(src, {
-                        id: src, src: src, alt: $(el).attr('alt') || '', mediaId: mediaId,
-                        width: null, height: null, context: null, widgetType: 'html_img'
+                const absoluteSrc = new URL(src, pageLink).href;
+                if (!imageMap.has(absoluteSrc)) {
+                    const classList = $(el).attr('class') || '';
+                    const match = classList.match(/wp-image-(\d+)/);
+                    const mediaId = match ? parseInt(match[1], 10) : null;
+                    
+                    imageMap.set(absoluteSrc, {
+                        id: absoluteSrc, src: absoluteSrc, alt: $(el).attr('alt') || '', mediaId: mediaId,
+                        width: $(el).attr('width') || null, height: $(el).attr('height') || null
                     });
                 }
             });
-
-            if (foundImageIds.size > 0) {
-                 const mediaResponse = await wpApi.get('/media', {
-                    params: { include: Array.from(foundImageIds).join(','), per_page: 100, _fields: 'id,alt_text,source_url,media_details' }
-                });
-                if (mediaResponse.data && Array.isArray(mediaResponse.data)) {
-                     mediaResponse.data.forEach((mediaItem: any) => {
-                        if (imageMap.has(mediaItem.source_url)) {
-                            const img = imageMap.get(mediaItem.source_url);
-                            img.alt = mediaItem.alt_text || img.alt;
-                            img.mediaId = mediaItem.id;
-                            img.width = mediaItem.media_details?.width || null;
-                            img.height = mediaItem.media_details?.height || null;
-                        }
-                     });
-                }
-            }
-            
-            const finalImageMap = new Map<string, any>();
-            scrapedImages.forEach(img => finalImageMap.set(img.src, img));
-            imageMap.forEach((img, src) => {
-                if (!finalImageMap.has(src)) {
-                    finalImageMap.set(src, img);
-                }
-            });
-            scrapedImages = Array.from(finalImageMap.values());
-
+            scrapedImages = Array.from(imageMap.values());
         } catch (scrapeError) {
             console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
         }
     }
 
+    // 3. Merge and de-duplicate results
+    const finalImageMap = new Map<string, any>();
+
+    // Prioritize scraped data as it represents what's live
+    scrapedImages.forEach(img => finalImageMap.set(img.src, img));
+    // Add images from Elementor data only if they weren't found by scraping (e.g. background images not in `<img>` tags)
+    elementorImages.forEach(img => {
+        if (!finalImageMap.has(img.url)) {
+            finalImageMap.set(img.url, {
+                id: img.url, src: img.url, alt: '', mediaId: img.id,
+                width: img.width, height: img.height, context: img.context, widgetType: img.widgetType
+            });
+        }
+    });
 
     return {
         id: post.id,
         title: post.name || post.title.rendered,
-        images: scrapedImages
+        images: Array.from(finalImageMap.values())
     };
 }
 
