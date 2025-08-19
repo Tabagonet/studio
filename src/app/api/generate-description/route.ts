@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -59,7 +60,7 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.array(z.string()).optional(),
+        tags: z.array(z.string()).optional(), // Changed to array
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).optional().default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),

@@ -1,3 +1,4 @@
+
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -51,12 +52,12 @@ export interface WooCommerceImage {
 export interface ProductAttribute {
   id?: number;
   name: string;
-  value: string;
-  options?: string[];
+  value: string; // Pipe-separated string for UI
+  options?: string[]; // Array of strings for API
   forVariations?: boolean;
   visible?: boolean;
   position?: number;
-  variation?: boolean;
+  variation?: boolean; // In case the API returns this field
 }
 
 export interface ProductVariationAttribute {

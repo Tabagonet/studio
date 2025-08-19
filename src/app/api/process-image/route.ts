@@ -8,18 +8,18 @@ import { adminAuth } from '@/lib/firebase-admin';
 export async function POST(req: NextRequest) {
     // Basic authentication to ensure it's called from our own backend
     try {
-        const token = req.headers.get('Authorization')?.split('Bearer ')[1];
+        const token = req.headers.get("Authorization")?.split("Bearer ")[1];
         if (!token) throw new Error('Auth token missing');
         if (!adminAuth) throw new Error("Firebase Admin Auth is not initialized.");
         await adminAuth.verifyIdToken(token); // Verify it's a valid token from our app
     } catch (e: any) {
-        return new Response('Unauthorized', { status: 401 });
+        return NextResponse.json({ error: `Unauthorized: ${e.message}` }, { status: 401 });
     }
 
     try {
         const { imageUrl } = await req.json();
         if (!imageUrl) {
-            return new Response('imageUrl is required', { status: 400 });
+            return NextResponse.json({ error: 'imageUrl is required' }, { status: 400 });
         }
         
         // Use axios to fetch the image as an arraybuffer, which is more reliable
@@ -39,14 +39,15 @@ export async function POST(req: NextRequest) {
             .toBuffer();
         
         const contentType = imageResponse.headers['content-type'] || 'image/webp';
-
-        return new Response(processedBuffer, {
+        
+        // Use NextResponse to properly handle the Buffer
+        return new NextResponse(processedBuffer, {
             status: 200,
             headers: { 'Content-Type': contentType }
         });
 
     } catch (error: any) {
         console.error('[API process-image] Error processing image:', error.message);
-        return new Response(`Error processing image: ${error.message}`, { status: 500 });
+        return NextResponse.json({ error: `Error processing image: ${error.message}` }, { status: 500 });
     }
 }

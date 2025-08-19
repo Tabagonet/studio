@@ -1,3 +1,4 @@
+
 // src/app/api/woocommerce/products/[id]/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -151,6 +152,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
         const attributes = Array.isArray(validatedData.attributes) ? validatedData.attributes : [];
         const sortedImages = [...(validatedData.images || [])].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
         
+        // Handle Tags
         const tagNames = Array.isArray(tags) ? tags.filter(t => t && t.trim()) : [];
         wooPayload.tags = tagNames.map(name => ({ name }));
         

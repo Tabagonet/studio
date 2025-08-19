@@ -1,8 +1,9 @@
+
 // src/app/api/woocommerce/products/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
-import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath } from '@/lib/api-helpers';
+import { getApiClientsForUser, uploadImageToWordPress, findOrCreateWpCategoryByPath, findOrCreateTags } from '@/lib/api-helpers';
 import type { ProductData, ProductVariation } from '@/lib/types';
 import axios from 'axios';
 
@@ -59,7 +60,11 @@ export async function POST(request: NextRequest) {
         }
         
         // Prepare the `images` array for the main product payload, respecting the primary image.
-        const sortedPhotos = [...finalProductData.photos].sort((a,b) => (a.isPrimary ? -1 : b.isPrimary ? 1 : 0));
+        const sortedPhotos = [...finalProductData.photos].sort((a, b) => {
+            if (a.isPrimary) return -1;
+            if (b.isPrimary) return 1;
+            return 0;
+        });
 
         const wooImagesPayload = sortedPhotos
             .filter(photo => !photo.toDelete)
@@ -85,11 +90,11 @@ export async function POST(request: NextRequest) {
         const supplierToAdd = finalProductData.supplier || finalProductData.newSupplier;
         if (supplierToAdd) {
             await findOrCreateWpCategoryByPath(`Proveedores > ${supplierToAdd}`, wpApi, 'product_cat');
+             console.log(`[API CREATE][AUDIT] Ensured supplier category exists for: ${supplierToAdd}`);
         }
 
         const tagNames = Array.isArray(finalProductData.tags) ? finalProductData.tags.filter(t => t && t.trim()) : [];
         const wooTagsPayload = tagNames.map(name => ({ name }));
-
 
         // 3. Prepare attributes
         const wooAttributes = finalProductData.attributes
