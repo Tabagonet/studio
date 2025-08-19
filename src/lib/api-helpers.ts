@@ -252,8 +252,8 @@ export function replaceElementorTexts(data: any, widgetUpdates: Map<string, stri
  * @param data The Elementor data (elements array, section, column, etc.).
  * @returns An array of objects, each containing image details.
  */
-export function findElementorImageContext(elementorData: any[]): { url: string; id: number | null, width: number | null, height: number | null, context: string, widgetType: string }[] {
-    const images: { url: string; id: number | null, width: number | null, height: number | null, context: string, widgetType: string }[] = [];
+export function findElementorImageContext(elementorData: any[]): { url: string; id: number | null, width: number | string | null, height: number | string | null, context: string, widgetType: string }[] {
+    const images: { url: string; id: number | null, width: number | string | null, height: number | string | null, context: string, widgetType: string }[] = [];
     if (!elementorData || !Array.isArray(elementorData)) return images;
 
     function traverse(items: any[]) {
@@ -262,10 +262,11 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
 
             const settings = item.settings;
             const widgetType = item.widgetType || 'unknown';
-
+            let contextText = settings?.title || settings?.title_text || settings?.text || item.id;
+            
             // Standard image widget
             if (widgetType === 'image' && settings?.image?.url) {
-                images.push({ url: settings.image.url, id: settings.image.id || null, width: settings.image.width || null, height: settings.image.height || null, context: `Widget: ${widgetType}`, widgetType });
+                images.push({ url: settings.image.url, id: settings.image.id || null, width: settings.image.width || null, height: settings.image.height || null, context: contextText, widgetType });
             }
 
             // Background images (for sections, columns)
@@ -290,7 +291,6 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
                 if (settings.background_b_image?.url) images.push({ url: settings.background_b_image.url, id: settings.background_b_image.id || null, width: null, height: null, context: 'Flip Box (Lado B)', widgetType });
             }
             
-            // The7 Image Box Widget
             if (widgetType === 'the7_image_box_widget' && settings?.image?.url) {
                  images.push({ url: settings.image.url, id: settings.image.id || null, width: null, height: null, context: settings.title_text || `Widget: ${widgetType}`, widgetType });
             }
