@@ -249,7 +249,6 @@ export function replaceElementorTexts(data: any, widgetUpdates: Map<string, stri
 
 /**
  * Recursively finds image URLs, IDs, and context in Elementor JSON data.
- * This version is enhanced to correctly extract dimensions and handle dynamic widgets.
  * @param elementorData The Elementor data (elements array, section, column, etc.).
  * @returns An array of objects, each containing image details.
  */
@@ -257,71 +256,64 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
     const images: { url: string; id: number | null, width: number | string | null, height: number | string | null, context: string, widgetType: string }[] = [];
     if (!elementorData || !Array.isArray(elementorData)) return images;
 
+    // Based on user feedback: a comprehensive list of keys where an image object might be stored.
+    const imageKeys = [
+      'image', 'background_image', 'background_a_image', 'background_b_image', 'gallery',
+      'featured_image', 'image_box_image', 'icon_box_image', 'image_carousel', 'image_slider',
+      'media', 'logo_image', 'parallax_image', 'attachment', 'video_image', 'image_overlay',
+      'before_image', 'after_image', 'thumbnail', 'background_overlay_image'
+    ];
+
     function traverse(items: any[]) {
         for (const item of items) {
             if (!item || typeof item !== 'object') continue;
 
-            const settings = item.settings;
+            const settings = item.settings || {};
             const widgetType = item.widgetType || 'unknown';
-            let contextText = settings?.title || settings?.title_text || settings?.text || settings?.caption || `Widget: ${widgetType}`;
-            
+            let contextText = settings.title || settings.title_text || settings.caption || `Widget: ${widgetType}`;
+
             const processImageObject = (imgObj: any, context: string, type: string, widgetSettings: any = {}) => {
                 if (imgObj?.url) {
+                    // Extract dimensions from various possible locations within the settings
                     const width = widgetSettings.image_custom_dimension?.width || widgetSettings.image_size?.width || imgObj.width || null;
                     const height = widgetSettings.image_custom_dimension?.height || widgetSettings.image_size?.height || imgObj.height || null;
                     images.push({ url: imgObj.url, id: imgObj.id || null, width, height, context, widgetType: type });
                 }
             };
-
-            // Standard image widget
-            if (widgetType === 'image' && settings?.image) {
-                processImageObject(settings.image, contextText, widgetType, settings);
-            }
-            if (widgetType === 'the7_image_box_widget' && settings?.image) {
-                processImageObject(settings.image, settings.title_text || `Widget: ${widgetType}`, widgetType, settings);
-            }
-            if (widgetType === 'theme-post-featured-image' && settings) {
-                 const fallbackImage = settings.image?.fallback || settings.fallback;
-                 let dynamicFallbackImage = null;
-
-                 if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
-                    try {
-                        const tagString = settings.__dynamic__.image;
-                        const settingsMatch = tagString.match(/settings="([^"]+)"/);
-                        if (settingsMatch && settingsMatch[1]) {
-                            const decodedSettings = decodeURIComponent(settingsMatch[1]);
-                            const parsedSettings = JSON.parse(decodedSettings);
-                            if (parsedSettings.fallback) {
-                                dynamicFallbackImage = parsedSettings.fallback;
-                            }
+            
+            // Handle dynamic images (e.g., featured image fallbacks)
+            if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
+                try {
+                    const tagString = settings.__dynamic__.image;
+                    const settingsMatch = tagString.match(/settings="([^"]+)"/);
+                    if (settingsMatch && settingsMatch[1]) {
+                        const decodedSettings = decodeURIComponent(settingsMatch[1]);
+                        const parsedSettings = JSON.parse(decodedSettings);
+                        if (parsedSettings.fallback) {
+                            processImageObject(parsedSettings.fallback, 'Imagen Destacada (Fallback)', widgetType, settings);
                         }
-                    } catch (e) {
-                         console.warn(`Could not parse dynamic settings for widget ${item.id}`, e);
                     }
-                 }
-                 const imageToProcess = dynamicFallbackImage || fallbackImage;
-                 if (imageToProcess) {
-                     processImageObject(imageToProcess, 'Imagen Destacada (Fallback)', widgetType, settings);
-                 }
+                } catch (e) {
+                     console.warn(`Could not parse dynamic settings for widget ${item.id}`, e);
+                }
             }
 
-
-            // Background images
-            if (settings?.background_image) processImageObject(settings.background_image, `Fondo de ${item.elType}`, 'background', settings);
-            if (settings?.background_overlay_image) processImageObject(settings.background_overlay_image, `Fondo Superpuesto de ${item.elType}`, 'background-overlay', settings);
-
-            // Sliders and Carousels
+            // Check all known keys for images
+            for (const key of imageKeys) {
+                if (settings[key]) {
+                    processImageObject(settings[key], contextText, widgetType, settings);
+                }
+            }
+            
+            // Specific logic for array-based widgets like sliders or galleries
             if (widgetType === 'slides' && Array.isArray(settings?.slides)) {
                 settings.slides.forEach((slide: any) => processImageObject(slide.background_image, slide.heading || `Slide en ${widgetType}`, widgetType, slide));
             }
-            if (widgetType === 'media-carousel' && Array.isArray(settings?.slides)) {
+            if ((widgetType === 'media-carousel' || widgetType === 'image-carousel') && Array.isArray(settings?.slides)) {
                  settings.slides.forEach((slide: any) => processImageObject(slide.image, `Carrusel en ${widgetType}`, widgetType, slide));
             }
-
-            // Flip Boxes
-            if (widgetType === 'flip-box' && settings) {
-                processImageObject(settings.background_a_image, 'Flip Box (Lado A)', widgetType, settings);
-                processImageObject(settings.background_b_image, 'Flip Box (Lado B)', widgetType, settings);
+            if (widgetType === 'gallery' && Array.isArray(settings?.gallery)) {
+                settings.gallery.forEach((galleryImage: any) => processImageObject(galleryImage, `Galería de imágenes`, widgetType, settings));
             }
 
             // Recurse into nested elements
@@ -332,6 +324,7 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
     }
 
     traverse(elementorData);
+    // Return unique images based on URL to avoid duplicates
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
 

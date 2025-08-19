@@ -75,7 +75,7 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     // First, process images found via scraping, as they contain the final rendered dimensions and alt text.
     scrapedImages.forEach(img => {
         finalImageMap.set(img.src, {
-            id: img.id,
+            id: img.src,
             src: img.src,
             alt: img.alt,
             mediaId: img.mediaId,
@@ -93,9 +93,7 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
         const existingImg = finalImageMap.get(img.url);
         existingImg.context = img.context || existingImg.context;
         existingImg.widgetType = img.widgetType || existingImg.widgetType;
-        // Keep the mediaId from Elementor if the scraped one is null
         existingImg.mediaId = existingImg.mediaId || img.id;
-        // Prioritize Elementor-defined dimensions if scraped ones are null
         existingImg.width = existingImg.width || img.width;
         existingImg.height = existingImg.height || img.height;
       } else {
