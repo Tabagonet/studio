@@ -28,9 +28,7 @@ export default function PagesManagementPage() {
     setIsLoading(true);
     setError(null);
     try {
-        const params = new URLSearchParams({
-            per_page: '200', // Fetch all pages at once for client-side grouping
-        });
+        const params = new URLSearchParams();
         if (forceRefresh) {
             params.set('cache_bust', Date.now().toString());
         }

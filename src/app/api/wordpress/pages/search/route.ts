@@ -40,9 +40,7 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ pages: [], totalPages: 0 });
     }
     
-    const { searchParams } = new URL(req.url);
-    const perPage = parseInt(searchParams.get('per_page') || '200', 10); // Default to a high number to fetch all
-
+    // Determine front page ID to mark it in the list
     let allFrontPageIds = new Set<number>();
     try {
         const settingsRes = await wpApi.get('/settings');
@@ -59,8 +57,11 @@ export async function GET(req: NextRequest) {
         console.warn("Could not retrieve site settings to determine front page.");
     }
     
+    // Fetch all pages at once by iterating through paginated results
     const allPages: any[] = [];
     let currentPage = 1;
+    const perPage = 100; // Max allowed by WP REST API
+
     while (true) {
         const response = await wpApi.get('pages', {
             params: {
@@ -74,14 +75,14 @@ export async function GET(req: NextRequest) {
         });
         
         if (response.data.length === 0) {
-            break;
+            break; // No more pages to fetch
         }
 
         allPages.push(...response.data);
         
         const totalPagesHeader = response.headers['x-wp-totalpages'];
         if (!totalPagesHeader || currentPage >= parseInt(totalPagesHeader, 10)) {
-            break;
+            break; // Reached the last page
         }
         currentPage++;
     }
@@ -95,7 +96,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch pages.';
     const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
-    console.error("Critical error in pages API:", error);
+    console.error("Critical error in pages search API:", error);
     return NextResponse.json({ error: errorMessage }, { status });
   }
 }

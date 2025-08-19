@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -155,7 +154,7 @@ export function PageDataTable({
       rowSelection,
       pagination,
     },
-    pageCount: -1,
+    pageCount: Math.ceil(tableData.length / pagination.pageSize),
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
@@ -167,6 +166,7 @@ export function PageDataTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    manualPagination: false, // Switch to client-side pagination
   });
   
   const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
@@ -514,7 +514,7 @@ export function PageDataTable({
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
-          {table.getRowModel().rows.length} fila(s) seleccionadas.
+          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
