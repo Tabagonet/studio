@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Loader2 } from 'lucide-react';
+import { getColumns } from './columns';
 
 interface PageDataTableProps {
   data: ContentItem[];
@@ -396,7 +397,7 @@ export function PageDataTable({
                 <SelectContent>
                     <SelectItem value="all">Todos los Tipos</SelectItem>
                     <SelectItem value="Page">Páginas</SelectItem>
-                    <SelectItem value="Categoría de Entradas">Cat. Entradas</SelectItem>
+                     <SelectItem value="Categoría de Entradas">Cat. Entradas</SelectItem>
                 </SelectContent>
             </Select>
             <Select
@@ -436,7 +437,7 @@ export function PageDataTable({
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
                 <Button variant="outline" disabled={selectedRowCount === 0 || isActionLoading} className="w-full md:w-auto">
-                    {isActionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                    {isActionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
                     Acciones ({selectedRowCount})
                 </Button>
             </DropdownMenuTrigger>
