@@ -5,7 +5,7 @@ import React, { useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { v4 as uuidv4 } from 'uuid';
 import Image from 'next/image';
-import { UploadCloud, X, Star, CheckCircle, AlertTriangle, Clock, RotateCcw } from 'lucide-react';
+import { UploadCloud, X, Star, CheckCircle, AlertTriangle, Clock, RotateCcw, Crop } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import type { ProductPhoto } from '@/lib/types';
@@ -18,9 +18,10 @@ interface ImageUploaderProps {
   onPhotosChange: (photos: ProductPhoto[]) => void;
   isProcessing: boolean;
   maxPhotos?: number;
+  onCropImage: (photo: ProductPhoto) => void;
 }
 
-export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPhotos = 10 }: ImageUploaderProps) {
+export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPhotos = 10, onCropImage }: ImageUploaderProps) {
   const { toast } = useToast();
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -144,6 +145,9 @@ export function ImageUploader({ photos = [], onPhotosChange, isProcessing, maxPh
                         <>
                            <Button variant="ghost" size="icon" onClick={() => setAsPrimary(photo.id)} title="Marcar como principal">
                                 <Star className={cn("h-5 w-5 text-white", photo.isPrimary && "fill-yellow-400 text-yellow-400")}/>
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => onCropImage(photo)} title="Recortar imagen">
+                                <Crop className="h-5 w-5 text-white" />
                             </Button>
                             <Button variant="ghost" size="icon" onClick={() => handleDelete(photo)} title="Eliminar imagen">
                                 <X className="h-5 w-5 text-destructive" />

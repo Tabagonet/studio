@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -31,6 +30,7 @@ interface Step1DetailsPhotosProps {
   updateProductData: (data: Partial<ProductData>) => void;
   isProcessing?: boolean;
   onPhotosChange: (photos: ProductPhoto[]) => void;
+  onCropImage: (photo: ProductPhoto) => void;
 }
 
 const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'exists' | 'available'; message: string }) => {
@@ -41,7 +41,7 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
     return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
 };
 
-export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false, onPhotosChange }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false, onPhotosChange, onCropImage }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -242,7 +242,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags.join(','),
+            tags: productData.tags,
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -270,7 +270,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             name: aiContent.name,
             shortDescription: aiContent.shortDescription,
             longDescription: aiContent.longDescription,
-            tags: Array.isArray(aiContent.tags) ? aiContent.tags : [],
+            tags: aiContent.tags,
             imageTitle: aiContent.imageTitle,
             imageAltText: aiContent.imageAltText,
             imageCaption: aiContent.imageCaption,
@@ -298,7 +298,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
         const payload = {
             productName: productData.name, productType: productData.productType,
-            tags: productData.tags.join(','),
+            tags: productData.tags,
             language: productData.language, mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
@@ -589,7 +589,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
           <div className="lg:col-span-1 space-y-8">
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
-                <CardContent className="space-y-4"><ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} isProcessing={isProcessing || isGenerating} maxPhotos={15} /><Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button></CardContent>
+                <CardContent className="space-y-4">
+                  <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} isProcessing={isProcessing || isGenerating} maxPhotos={15} onCropImage={onCropImage} />
+                  <Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button>
+                </CardContent>
               </Card>
 
               <Card>

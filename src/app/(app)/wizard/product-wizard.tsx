@@ -16,6 +16,8 @@ import { ArrowLeft, ArrowRight, Rocket, ExternalLink } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import Link from 'next/link';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
+import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
+
 
 export function ProductWizard() {
   const [currentStep, setCurrentStep] = useState(1);
@@ -29,6 +31,8 @@ export function ProductWizard() {
 
   const isProcessing = submissionStatus === 'processing';
   const [isStepValid, setIsStepValid] = useState(true);
+
+  const [imageToCrop, setImageToCrop] = useState<ProductPhoto | null>(null);
 
   const updateProductData = useCallback((data: Partial<ProductData>) => {
     setProductData(prev => ({ ...prev, ...data }));
@@ -117,6 +121,27 @@ export function ProductWizard() {
     }
   }, [currentStep, submissionStatus, handleCreateProduct]);
 
+  const handleCroppedImageSave = (croppedImageFile: File) => {
+    if (!imageToCrop) return;
+    
+    const updatedPhotos = productData.photos.map(p => {
+        if (p.id === imageToCrop.id) {
+            return {
+                ...p,
+                file: croppedImageFile,
+                name: croppedImageFile.name,
+                previewUrl: URL.createObjectURL(croppedImageFile), // Create new preview URL
+            };
+        }
+        return p;
+    });
+
+    handlePhotosChange(updatedPhotos);
+    setImageToCrop(null); // Close the dialog
+    toast({ title: "Imagen Recortada", description: "La imagen ha sido actualizada en el asistente." });
+  };
+
+
   const nextStep = () => {
     if (currentStep < 3) {
       setCurrentStep(prev => prev + 1);
@@ -144,7 +169,7 @@ export function ProductWizard() {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} onCropImage={setImageToCrop} />;
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
@@ -152,7 +177,7 @@ export function ProductWizard() {
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:
-        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} />;
+        return <Step1DetailsPhotos productData={productData} updateProductData={updateProductData} isProcessing={isProcessing} onPhotosChange={handlePhotosChange} onCropImage={setImageToCrop} />;
     }
   };
   
@@ -168,6 +193,14 @@ export function ProductWizard() {
   return (
     <div className="space-y-8">
       {renderStep()}
+
+      <ImageCropperDialog
+        open={!!imageToCrop}
+        onOpenChange={(open) => !open && setImageToCrop(null)}
+        imageToCrop={imageToCrop}
+        onSave={handleCroppedImageSave}
+        isSaving={false} // This dialog doesn't save to the server, just updates local state
+      />
       
       {currentStep < 4 && !isProcessing && (
         <div className="flex justify-between mt-8">
