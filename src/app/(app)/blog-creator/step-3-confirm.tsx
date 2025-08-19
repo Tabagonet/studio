@@ -1,7 +1,7 @@
 // src/app/(app)/blog-creator/step-3-confirm.tsx
 import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { StepConfirmProps, ProductData, BlogPostData } from "@/lib/types"; 
+import type { StepConfirmProps, BlogPostData } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
@@ -10,10 +10,7 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
   const isProduct = 'productType' in data;
   const postData = !isProduct ? data as BlogPostData : null;
   
-  const photosToUploadCount = postData?.featuredImage?.file ? 1 : 0;
-  const categoryName = postData?.category?.name || postData?.categoryPath || 'No especificada';
-
-   // Perform validation here and call the callback
+  // Perform validation here and call the callback
   useEffect(() => {
     if (postData) {
       const isValid = !!postData.title && !!postData.content; 
@@ -32,6 +29,9 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
           </Alert>
       )
   }
+
+  const photosToUploadCount = postData.featuredImage?.file ? 1 : 0;
+  const categoryName = postData.category?.name || postData.categoryPath || 'No especificada';
 
   return (
     <div className="space-y-8">
