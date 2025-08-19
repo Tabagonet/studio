@@ -506,9 +506,3 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
-
-// Unified Props for Step3Confirm components
-export interface StepConfirmProps {
-  data: ProductData | BlogPostData;
-  onValidationComplete: (isValid: boolean) => void;
-}

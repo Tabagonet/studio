@@ -12,7 +12,6 @@ interface Step3ConfirmProps {
 
 export function Step3Confirm({ postData, onValidationComplete }: Step3ConfirmProps) {
   
-  // Perform validation here and call the callback
   useEffect(() => {
     if (postData) {
       const isValid = !!postData.title && !!postData.content; 

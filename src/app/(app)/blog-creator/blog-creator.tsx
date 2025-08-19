@@ -293,7 +293,7 @@ export function BlogCreator() {
             Anterior
           </Button>
 
-          {currentStep === 1 ? (
+          {currentStep < 2 ? (
              <TooltipProvider>
                 <Tooltip>
                     <TooltipTrigger asChild>
