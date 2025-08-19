@@ -1,6 +1,6 @@
 // src/app/api/wordpress/content-list/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
+import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ContentItem } from '@/lib/types';
 import type { AxiosInstance } from 'axios';
@@ -9,12 +9,21 @@ export const dynamic = 'force-dynamic';
 
 // Helper to transform fetched data into the unified ContentItem format
 function transformToContentItem(item: any, type: ContentItem['type'], isFrontPage: boolean): ContentItem {
+  let title = 'Sin Título';
+  if (item.name) {
+    // For products and categories
+    title = typeof item.name === 'object' ? item.name.rendered : item.name;
+  } else if (item.title) {
+    // For posts and pages
+    title = item.title.rendered;
+  }
+
   return {
     id: item.id,
-    title: item.name || item.title?.rendered || 'Sin Título',
+    title: title,
     slug: item.slug || null,
     type: type,
-    link: item.permalink || item.link || null,
+    link: item.link || null,
     status: item.status || 'publish',
     parent: item.parent || 0,
     lang: item.lang || null,
@@ -24,15 +33,17 @@ function transformToContentItem(item: any, type: ContentItem['type'], isFrontPag
   };
 }
 
-async function fetchContentPage(
-  api: AxiosInstance | null,
-  postType: 'pages' | 'categories' | 'posts',
+// Unified function to fetch any content type
+async function fetchContent(
+  api: AxiosInstance,
+  endpoint: string,
+  type: ContentItem['type'],
+  allFrontPageIds: Set<number>,
   page: number,
-  perPage: number
-): Promise<{ data: any[], totalPages: number }> {
-  if (!api) return { data: [], totalPages: 0 };
+  perPage: number,
+): Promise<{ items: ContentItem[], totalPages: number }> {
   try {
-    const response = await api.get(postType, {
+    const response = await api.get(endpoint, {
       params: {
         per_page: perPage,
         page: page,
@@ -42,13 +53,19 @@ async function fetchContentPage(
         status: 'publish,future,draft,pending,private,trash'
       }
     });
-    return {
-      data: response.data,
-      totalPages: parseInt(response.headers['x-wp-totalpages'] || '1', 10)
-    };
+
+    const items = response.data.map((item: any) => transformToContentItem(item, type, allFrontPageIds.has(item.id)));
+    const totalPages = parseInt(response.headers['x-wp-totalpages'] || '1', 10);
+    
+    return { items, totalPages };
   } catch (error) {
-    console.warn(`Could not fetch content type "${postType}" (page ${page}):`, (error as any).message);
-    return { data: [], totalPages: 0 };
+    // Gracefully handle if a post type doesn't exist (e.g., 'products' without Woo)
+    if ((error as any).response?.status === 404) {
+        console.warn(`Endpoint /${endpoint} not found. Skipping this content type.`);
+        return { items: [], totalPages: 0 };
+    }
+    console.error(`Could not fetch content type "${endpoint}" (page ${page}):`, (error as any).message);
+    throw error; // Re-throw other errors
   }
 }
 
@@ -64,12 +81,9 @@ export async function GET(req: NextRequest) {
     }
     uid = (await adminAuth.verifyIdToken(token)).uid;
     
-    if (!adminDb) {
-      throw new Error("Firestore Admin is not initialized.");
-    }
-
-    const { wpApi } = await getApiClientsForUser(uid);
+    const { wpApi, wooApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
+        // If there's no WP connection, we can't fetch anything.
         return NextResponse.json({ content: [], totalPages: 0 });
     }
     
@@ -77,43 +91,54 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const perPage = parseInt(searchParams.get('per_page') || '20', 10);
 
-    const [pagesResponse, categoriesResponse] = await Promise.all([
-      fetchContentPage(wpApi, 'pages', page, perPage),
-      fetchContentPage(wpApi, 'categories', 1, 100) // Fetch all categories
-    ]);
-
-    const frontPageId = Number(get_option('page_on_front', 0));
+    // Determine front page ID to mark it in the list
     let allFrontPageIds = new Set<number>();
-    if (frontPageId > 0) {
-      allFrontPageIds.add(frontPageId);
-      if (typeof (wpApi as any).pll_get_post_translations === 'function') {
-        try {
-            const translations = await (wpApi as any).pll_get_post_translations(frontPageId);
-            Object.values(translations).forEach(id => allFrontPageIds.add(id as number));
-        } catch(e) {
-             console.warn("Polylang functions may not be available for page_on_front.");
+    try {
+        const settingsRes = await wpApi.get('/settings');
+        const frontPageId = settingsRes.data?.page_on_front;
+        if (frontPageId) {
+            allFrontPageIds.add(frontPageId);
+            if (typeof (wpApi as any).pll_get_post_translations === 'function') {
+                const translations = await (wpApi as any).pll_get_post_translations(frontPageId);
+                Object.values(translations).forEach(id => allFrontPageIds.add(id as number));
+            }
         }
-      }
+    } catch(e) {
+        console.warn("Could not retrieve site settings to determine front page.");
     }
     
-    const pages = pagesResponse.data.map((item: any) => transformToContentItem(item, 'Page', allFrontPageIds.has(item.id)));
-    const categories = categoriesResponse.data.map((item: any) => transformToContentItem(item, 'Categoría de Entradas', false));
+    // Fetch all content types in parallel
+    const contentPromises = [
+        fetchContent(wpApi, 'pages', 'Page', allFrontPageIds, page, perPage),
+        fetchContent(wpApi, 'posts', 'Post', allFrontPageIds, page, perPage),
+        fetchContent(wooApi, 'products', 'Producto', allFrontPageIds, page, perPage),
+        fetchContent(wpApi, 'categories', 'Categoría de Entradas', allFrontPageIds, 1, 100), // Fetch all categories
+        fetchContent(wooApi, 'products/categories', 'Categoría de Productos', allFrontPageIds, 1, 100), // Fetch all product categories
+    ];
+
+    const results = await Promise.allSettled(contentPromises);
     
-    const allContent = [...pages, ...categories];
+    const allContent: ContentItem[] = [];
+    let maxTotalPages = 0;
+
+    results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value) {
+            allContent.push(...result.value.items);
+            if(result.value.totalPages > maxTotalPages) {
+                maxTotalPages = result.value.totalPages;
+            }
+        }
+    });
     
     return NextResponse.json({ 
         content: allContent,
-        totalPages: pagesResponse.totalPages
+        totalPages: maxTotalPages,
     });
 
   } catch (error: any) {
-    const errorMessage = error.response?.data?.message || 'Failed to fetch content list.';
-    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
+    const errorMessage = error.response?.data?.message || error.message || 'Failed to fetch content list.';
+    const status = error.message?.includes('not configured') ? 400 : (error.response?.status || 500);
+    console.error("Critical error in content-list API:", error);
     return NextResponse.json({ error: errorMessage }, { status });
   }
-}
-
-// Dummy function to satisfy type checker, as get_option is a WP function
-function get_option(key: string, defaultValue: any): any {
-    return defaultValue;
 }
