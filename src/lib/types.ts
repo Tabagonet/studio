@@ -1,3 +1,4 @@
+
 // src/lib/types.ts
       
 import type { LucideIcon } from 'lucide-react';
@@ -507,8 +508,8 @@ export interface PlanUsage {
   };
 }
 
-// Wizard specific types
-export interface Step3ConfirmProps {
-  productData: ProductData;
+// Unified Props for Step3Confirm components
+export interface StepConfirmProps {
+  data: ProductData | BlogPostData;
   onValidationComplete: (isValid: boolean) => void;
 }

@@ -1,11 +1,13 @@
+
 // src/app/(app)/wizard/step-3-confirm.tsx
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ProductData, Step3ConfirmProps } from "@/lib/types";
+import type { ProductData, StepConfirmProps } from "@/lib/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
-export function Step3Confirm({ productData, onValidationComplete }: Step3ConfirmProps) {
+export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
+  const productData = data as ProductData;
   const photosToUploadCount = productData.photos.filter(p => p.file).length;
   const validAttributesCount = productData.attributes.filter(a => a.name && a.name.trim() !== '').length;
   const categoryName = productData.category?.name || productData.categoryPath || 'No especificada';

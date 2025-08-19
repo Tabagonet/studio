@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/product-wizard.tsx
 
 "use client";
@@ -7,7 +8,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview'; 
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto, StepConfirmProps } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA, ALL_LANGUAGES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -82,8 +83,14 @@ export function ProductWizard() {
         updateStepStatus('create_product', 'processing', 'Preparando datos para enviar...', undefined, 10);
         
         const formData = new FormData();
-        formData.append('productData', JSON.stringify(productData));
-        productData.photos.forEach(photo => {
+        // Ensure we don't send photos marked for deletion
+        const finalProductData = {
+          ...productData,
+          photos: productData.photos.filter(p => !p.toDelete)
+        };
+        formData.append('productData', JSON.stringify(finalProductData));
+
+        finalProductData.photos.forEach(photo => {
             if (photo.file) {
                 // Use the unique client-side ID as the key for the file
                 formData.append(photo.id.toString(), photo.file);
@@ -173,7 +180,7 @@ export function ProductWizard() {
       case 2:
         return <Step2Preview productData={productData} />;
       case 3:
-        return <Step3Confirm productData={productData} onValidationComplete={setIsStepValid} />;
+        return <Step3Confirm data={productData} onValidationComplete={setIsStepValid} />;
       case 4:
         return <Step4Processing status={submissionStatus} steps={steps} />;
       default:

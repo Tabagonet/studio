@@ -3,7 +3,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import type { BlogPostData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
+import type { BlogPostData, SubmissionStep, SubmissionStatus, ProductPhoto, StepConfirmProps } from '@/lib/types';
 import { INITIAL_BLOG_DATA } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';
@@ -13,6 +13,7 @@ import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/comp
 
 import { Step1Content } from './step-1-content';
 import { Step2Preview } from './step-2-preview';
+import { Step3Confirm } from './step-3-confirm';
 import { Step3Results } from './step-3-results';
 import { Card } from '@/components/ui/card';
 import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
@@ -133,7 +134,7 @@ export function BlogCreator() {
 
         // --- Step 2: Create Original Post ---
         updateStepStatus('create_original', 'processing');
-        const sourceLangSlug = LANG_CODE_MAP[postData.sourceLanguage] || 'en';
+        const sourceLangSlug = LANG_CODE_MAP[postData.sourceLanguage as keyof typeof LANG_CODE_MAP] || 'en';
         const originalPayload = { 
             postData: finalPostData, 
             lang: sourceLangSlug,
@@ -257,6 +258,8 @@ export function BlogCreator() {
     };
 
     const isStep1Valid = postData.title.trim() !== '' && postData.content.trim() !== '';
+    const [isConfirmStepValid, setIsConfirmStepValid] = useState(false);
+
 
   if (currentStep === 3) {
       return <Step3Results status={submissionStatus} steps={steps} finalLinks={finalLinks} onStartOver={startOver} />;
@@ -265,7 +268,7 @@ export function BlogCreator() {
   return (
     <div className="space-y-8">
       {currentStep === 1 && <Step1Content postData={postData} updatePostData={updatePostData} onCropImage={setImageToCrop} />}
-      {currentStep === 2 && <Step2Preview postData={postData} />}
+      {currentStep === 2 && <Step3Confirm data={postData} onValidationComplete={setIsConfirmStepValid} />}
       
         <ImageCropperDialog
             open={!!imageToCrop}
@@ -288,7 +291,7 @@ export function BlogCreator() {
                     <TooltipTrigger asChild>
                          <div className="inline-block"> {/* Wrapper div for tooltip on disabled button */}
                             <Button onClick={nextStep} disabled={!isStep1Valid}>
-                                Previsualizar Entrada
+                                Previsualizar y Confirmar
                                 <ArrowRight className="ml-2 h-4 w-4" />
                             </Button>
                         </div>
@@ -301,7 +304,7 @@ export function BlogCreator() {
                 </Tooltip>
              </TooltipProvider>
           ) : currentStep === 2 ? (
-            <Button onClick={handleCreatePost}>
+            <Button onClick={handleCreatePost} disabled={!isConfirmStepValid}>
               <Rocket className="mr-2 h-4 w-4" />
               Crear Entrada(s)
             </Button>
@@ -312,4 +315,3 @@ export function BlogCreator() {
   );
 }
 
-    
