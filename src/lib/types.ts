@@ -38,6 +38,8 @@ export interface ProductPhoto {
   uploadedFilename?: string;
   serverPath?: string;
   toDelete?: boolean; 
+  width?: number | string | null; // Optional dimensions
+  height?: number | string | null;
 }
 
 export interface WooCommerceImage {

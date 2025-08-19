@@ -50,7 +50,7 @@ export function ImageCropperDialog({
 
   // Calculate aspect ratio safely
   const cropperAspectRatio = (() => {
-    if (imageToCrop?.width && imageToCrop?.height && !isNaN(Number(imageToCrop.width)) && !isNaN(Number(imageToCrop.height)) && Number(imageToCrop.height) !== 0) {
+    if (imageToCrop && 'width' in imageToCrop && 'height' in imageToCrop && imageToCrop.width && imageToCrop.height && !isNaN(Number(imageToCrop.width)) && !isNaN(Number(imageToCrop.height)) && Number(imageToCrop.height) !== 0) {
       return Number(imageToCrop.width) / Number(imageToCrop.height);
     }
     // Fallback to a default aspect ratio if dimensions are not available
@@ -58,7 +58,8 @@ export function ImageCropperDialog({
   })();
 
   const loadOriginalImage = async (image: ContentImage | ProductPhoto) => {
-    if (!image.src && !('previewUrl' in image && image.previewUrl)) {
+    const imageUrlToLoad = 'src' in image ? image.src : image.previewUrl;
+    if (!imageUrlToLoad) {
         toast({ title: 'No hay imagen de origen', variant: 'destructive'});
         return;
     }
@@ -66,8 +67,6 @@ export function ImageCropperDialog({
     setIsOriginalLoading(true);
     setSourceImage(null);
     try {
-        const imageUrlToLoad = image.src || (image as ProductPhoto).previewUrl;
-        
         if (imageUrlToLoad.startsWith('blob:')) {
             setSourceImage(imageUrlToLoad);
             setOriginalFilename((image as ProductPhoto).name || 'image.png');
