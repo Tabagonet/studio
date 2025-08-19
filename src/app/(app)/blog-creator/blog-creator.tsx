@@ -228,9 +228,16 @@ export function BlogCreator() {
             });
         }
     }
-    else if (currentStep < 3) {
-      setCurrentStep(prev => prev + 1);
-      window.scrollTo(0, 0);
+    else if (currentStep === 2) {
+      if(isConfirmStepValid) {
+        handleCreatePost();
+      } else {
+        toast({
+            title: "Validación Fallida",
+            description: "Por favor, corrige los errores antes de continuar.",
+            variant: "destructive",
+        })
+      }
     }
   };
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 1));
@@ -304,7 +311,7 @@ export function BlogCreator() {
                 </Tooltip>
              </TooltipProvider>
           ) : currentStep === 2 ? (
-            <Button onClick={handleCreatePost} disabled={!isConfirmStepValid}>
+            <Button onClick={nextStep} disabled={!isConfirmStepValid}>
               <Rocket className="mr-2 h-4 w-4" />
               Crear Entrada(s)
             </Button>
@@ -314,5 +321,3 @@ export function BlogCreator() {
     </div>
   );
 }
-
-    

@@ -255,5 +255,3 @@ export function ProductWizard() {
     </div>
   );
 }
-
-    

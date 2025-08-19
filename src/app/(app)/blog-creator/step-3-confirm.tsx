@@ -1,6 +1,6 @@
 
 // src/app/(app)/blog-creator/step-3-confirm.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { BlogPostData, StepConfirmProps } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -13,7 +13,7 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
   const categoryName = postData.category?.name || postData.categoryPath || 'No especificada';
 
    // Perform validation here and call the callback
-  React.useEffect(() => {
+  useEffect(() => {
     const isValid = !!postData.title && !!postData.content; 
     onValidationComplete(isValid);
   }, [postData.title, postData.content, onValidationComplete]);
@@ -23,7 +23,7 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
     <div className="space-y-8">
        <Card>
         <CardHeader>
-          <CardTitle>Paso 3: Confirmación y Creación</CardTitle>
+          <CardTitle>Paso 2: Confirmación y Creación</CardTitle>
           <CardDescription>Estás a punto de iniciar el proceso de creación de la(s) entrada(s) del blog.</CardDescription>
         </CardHeader>
       </Card>
@@ -75,5 +75,3 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
     </div>
   );
 }
-
-    

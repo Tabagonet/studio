@@ -1,6 +1,6 @@
 
 // src/app/(app)/wizard/step-3-confirm.tsx
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ProductData, StepConfirmProps } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,7 +14,7 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
   const categoryName = productData.category?.name || productData.categoryPath || 'No especificada';
 
    // Perform validation here and call the callback
-  React.useEffect(() => {
+  useEffect(() => {
     const isValid = !!productData.name; 
     onValidationComplete(isValid);
   }, [productData.name, onValidationComplete]);
@@ -66,5 +66,3 @@ export function Step3Confirm({ data, onValidationComplete }: StepConfirmProps) {
     </div>
   );
 }
-
-    
