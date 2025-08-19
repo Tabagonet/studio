@@ -1,9 +1,7 @@
-
-
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
-import { getApiClientsForUser, findImageUrlsInElementor, findBeaverBuilderImages } from '@/lib/api-helpers';
+import { getApiClientsForUser, findElementorImageContext, findBeaverBuilderImages } from '@/lib/api-helpers';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import type { ExtractedWidget } from '@/lib/types';
@@ -32,7 +30,7 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
 
     if (isElementor) {
         const elementorData = JSON.parse(metaToCheck._elementor_data || '[]');
-        const imageUrlsData = findImageUrlsInElementor(elementorData);
+        const imageUrlsData = findElementorImageContext(elementorData);
         
         if (imageUrlsData.length > 0) {
             scrapedImages = imageUrlsData.map(imgData => ({
@@ -42,6 +40,8 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
                 mediaId: imgData.id,
                 width: imgData.width,
                 height: imgData.height,
+                context: imgData.context,
+                widgetType: imgData.widgetType,
             }));
 
             const mediaIdsToFetch = imageUrlsData.map(img => img.id).filter((id): id is number => id !== null);
@@ -78,6 +78,8 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
                 mediaId: null,
                 width: null,
                 height: null,
+                context: null,
+                widgetType: 'beaver_builder_image',
             }));
         }
     }
@@ -106,7 +108,7 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
                 if (!imageMap.has(src)) {
                     imageMap.set(src, {
                         id: src, src: src, alt: $(el).attr('alt') || '', mediaId: mediaId,
-                        width: null, height: null,
+                        width: null, height: null, context: null, widgetType: 'html_img'
                     });
                 }
             });

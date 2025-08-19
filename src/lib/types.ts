@@ -293,6 +293,8 @@ export interface ContentImage {
     mediaId: number | null; // The WordPress Media Library ID
     width: number | null;
     height: number | null;
+    context?: string | null;
+    widgetType?: string | null;
 }
 
 export interface ExtractedWidget {
