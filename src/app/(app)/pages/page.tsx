@@ -1,18 +1,19 @@
 
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FileText, Loader2, RefreshCw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { PageDataTable } from "./page-data-table";
 import type { ContentItem } from '@/lib/types';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+
 
 export default function PagesManagementPage() {
   const [data, setData] = useState<ContentItem[]>([]);
@@ -38,7 +39,7 @@ export default function PagesManagementPage() {
         }
 
         const [contentResponse, scoresResponse] = await Promise.all([
-            fetch(`/api/wordpress/content-list?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
+            fetch(`/api/wordpress/pages?${params.toString()}`, { headers: { 'Authorization': `Bearer ${token}` } }),
             fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } })
         ]);
 
@@ -47,7 +48,7 @@ export default function PagesManagementPage() {
             throw new Error(errorData.error || 'No se pudo cargar el contenido del sitio.');
         }
         const contentData = await contentResponse.json();
-        setData(contentData.content || []);
+        setData(contentData.pages || []);
         setPageCount(contentData.totalPages || 0);
 
         if (scoresResponse.ok) {
@@ -66,7 +67,7 @@ export default function PagesManagementPage() {
                 const normalized = normalizeUrl(url);
                 if (normalized) normalizedScoresMap.set(normalized, score);
             }
-            (contentData.content || []).forEach((item: ContentItem) => {
+            (contentData.pages || []).forEach((item: ContentItem) => {
                 if (item.link) {
                   const normalizedItemLink = normalizeUrl(item.link);
                   if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {
@@ -111,6 +112,15 @@ export default function PagesManagementPage() {
     };
   }, [fetchData]);
 
+  if (isLoading && data.length === 0) {
+      return (
+           <div className="container mx-auto py-8 space-y-6">
+                 <Skeleton className="h-28" />
+                 <Skeleton className="h-96" />
+           </div>
+      )
+  }
+
   return (
     <div className="container mx-auto py-8 space-y-6">
       <Card>
@@ -118,7 +128,7 @@ export default function PagesManagementPage() {
             <div className="flex items-center space-x-3">
                 <FileText className="h-8 w-8 text-primary" />
                 <div>
-                    <CardTitle>Gestión de Contenido</CardTitle>
+                    <CardTitle>Gestión de Páginas</CardTitle>
                     <CardDescription>Visualiza, filtra y gestiona tus páginas. Haz clic en una fila para optimizar su SEO.</CardDescription>
                 </div>
             </div>
