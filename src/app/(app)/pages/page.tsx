@@ -1,3 +1,4 @@
+
 // src/app/(app)/pages/page.tsx
 "use client";
 
@@ -148,6 +149,20 @@ export default function PagesManagementPage() {
         window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
   }, [fetchData]);
+  
+  const handleViewReport = (item: ContentItem) => {
+    router.push(`/seo-optimizer?id=${item.id}&type=${item.type}`);
+  }
+  
+  const handleAnalyzePage = async (page: ContentItem) => {
+     const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "Authentication Required", variant: "destructive" });
+        return;
+    }
+    await user.getIdToken();
+    router.push(`/seo-optimizer?id=${page.id}&type=${page.type}&analyze=true`);
+  };
 
   if (isLoading && data.length === 0) {
       return (
@@ -185,7 +200,7 @@ export default function PagesManagementPage() {
           </Alert>
       )}
       
-       <PageDataTable 
+       <SeoPageListTable 
          data={data} 
          scores={scores}
          isLoading={isLoading} 
@@ -194,6 +209,8 @@ export default function PagesManagementPage() {
          totalItems={totalItems}
          pagination={pagination}
          setPagination={setPagination}
+         onAnalyzePage={handleAnalyzePage}
+         onViewReport={handleViewReport}
          onEdit={handleEditContent}
          onDelete={handleDeleteContent}
          onEditImages={handleEditImages}
