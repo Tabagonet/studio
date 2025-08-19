@@ -20,6 +20,7 @@ import { useForm, FormProvider } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { ImageCropperDialog } from '@/components/features/media/image-cropper-dialog';
 
 
 const companySchema = z.object({
@@ -46,6 +47,7 @@ type CompanyFormData = z.infer<typeof companySchema>;
 export default function CompanySettingsPage() {
     const searchParams = useSearchParams();
     const [logoPhotos, setLogoPhotos] = useState<ProductPhoto[]>([]);
+    const [imageToCrop, setImageToCrop] = useState<ProductPhoto | null>(null);
     
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -248,6 +250,19 @@ export default function CompanySettingsPage() {
         }
     };
     
+    const handleCroppedImageSave = (croppedImageFile: File) => {
+        if (!imageToCrop) return;
+        const updatedPhoto: ProductPhoto = {
+          ...imageToCrop,
+          file: croppedImageFile,
+          name: croppedImageFile.name,
+          previewUrl: URL.createObjectURL(croppedImageFile),
+        };
+        setLogoPhotos([updatedPhoto]);
+        setImageToCrop(null);
+        toast({ title: "Logo Recortado", description: "El logo ha sido actualizado. Guarda los cambios para aplicarlo." });
+    };
+
     const renderContent = () => {
         if (isLoading) {
             return <Skeleton className="h-96 w-full" />;
@@ -382,6 +397,7 @@ export default function CompanySettingsPage() {
                                 onPhotosChange={setLogoPhotos}
                                 isProcessing={isSaving}
                                 maxPhotos={1}
+                                onCropImage={setImageToCrop}
                             />
                         </CardContent>
                     </Card>
@@ -401,6 +417,13 @@ export default function CompanySettingsPage() {
 
     return (
         <div className="container mx-auto py-8 space-y-6">
+            <ImageCropperDialog
+                open={!!imageToCrop}
+                onOpenChange={(open) => !open && setImageToCrop(null)}
+                imageToCrop={imageToCrop}
+                onSave={handleCroppedImageSave}
+                isSaving={isSaving}
+            />
             <Card>
                 <CardHeader>
                     <div className="flex items-center space-x-3">
