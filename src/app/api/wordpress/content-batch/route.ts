@@ -15,13 +15,13 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
     let post;
     const isProduct = type.toLowerCase() === 'producto';
     const endpoint = isProduct ? `products/${id}` : (type.toLowerCase() === 'page' ? `pages/${id}` : `posts/${id}`);
-    const api = isProduct ? wooApi : wpApi;
+    const apiToUse = isProduct ? wooApi : wpApi;
 
-    if (!api) {
+    if (!apiToUse) {
         throw new Error(`API client for type "${type}" is not configured.`);
     }
 
-    const { data } = await api.get(endpoint, { params: { context: 'edit' } });
+    const { data } = await apiToUse.get(endpoint, { params: { context: 'edit' } });
     post = data;
 
     let scrapedImages: any[] = [];
