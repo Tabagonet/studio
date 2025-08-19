@@ -1,3 +1,4 @@
+
 // This is a new file for fetching batch content data.
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
@@ -71,9 +72,32 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
 
     // 3. Merge and de-duplicate results with improved logic
     const finalImageMap = new Map<string, any>();
-    
-    // First, process images found via scraping, as they contain the final rendered dimensions and alt text.
+
+    // First, process images found in Elementor JSON, as they contain widget context.
+    elementorImages.forEach(img => {
+        finalImageMap.set(img.url, {
+            id: img.url,
+            src: img.url,
+            alt: '', // Will be enriched by scraper
+            mediaId: img.id,
+            width: img.width,
+            height: img.height,
+            context: img.context,
+            widgetType: img.widgetType,
+        });
+    });
+
+    // Now, iterate through scraped images to enrich the map or add new images.
     scrapedImages.forEach(img => {
+      if (finalImageMap.has(img.src)) {
+        // If image exists, enrich it with scraped data (which is more reliable for alt/dims)
+        const existingImg = finalImageMap.get(img.src);
+        existingImg.alt = img.alt || existingImg.alt;
+        existingImg.mediaId = existingImg.mediaId || img.mediaId;
+        existingImg.width = img.width || existingImg.width;
+        existingImg.height = img.height || existingImg.height;
+      } else {
+        // If it's a new image found only by scraping, add it
         finalImageMap.set(img.src, {
             id: img.src,
             src: img.src,
@@ -84,33 +108,8 @@ async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) 
             context: 'Contenido HTML',
             widgetType: 'image',
         });
-    });
-
-    // Now, iterate through Elementor images to enrich the map with context and potentially missing media IDs.
-    elementorImages.forEach(img => {
-      if (finalImageMap.has(img.url)) {
-        // If image exists, enrich it with Elementor-specific data
-        const existingImg = finalImageMap.get(img.url);
-        existingImg.context = img.context || existingImg.context;
-        existingImg.widgetType = img.widgetType || existingImg.widgetType;
-        existingImg.mediaId = existingImg.mediaId || img.id;
-        existingImg.width = existingImg.width || img.width;
-        existingImg.height = existingImg.height || img.height;
-      } else {
-        // If it's a new image found only in Elementor JSON, add it
-        finalImageMap.set(img.url, {
-            id: img.url,
-            src: img.url,
-            alt: '', // Alt text not available in Elementor JSON
-            mediaId: img.id,
-            width: img.width,
-            height: img.height,
-            context: img.context,
-            widgetType: img.widgetType,
-        });
       }
     });
-
 
     return {
         id: post.id,

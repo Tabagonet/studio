@@ -1,3 +1,4 @@
+
 // src/lib/api-helpers.ts
 import { admin, adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
@@ -256,12 +257,11 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
     const images: { url: string; id: number | null, width: number | string | null, height: number | string | null, context: string, widgetType: string }[] = [];
     if (!elementorData || !Array.isArray(elementorData)) return images;
 
-    // Based on user feedback: a comprehensive list of keys where an image object might be stored.
     const imageKeys = [
-      'image', 'background_image', 'background_a_image', 'background_b_image', 'gallery',
-      'featured_image', 'image_box_image', 'icon_box_image', 'image_carousel', 'image_slider',
-      'media', 'logo_image', 'parallax_image', 'attachment', 'video_image', 'image_overlay',
-      'before_image', 'after_image', 'thumbnail', 'background_overlay_image'
+        'image', 'background_image', 'background_a_image', 'background_b_image', 
+        'featured_image', 'image_box_image', 'icon_box_image',
+        'media', 'logo_image', 'parallax_image', 'attachment', 'video_image', 'image_overlay',
+        'before_image', 'after_image', 'thumbnail', 'background_overlay_image'
     ];
 
     function traverse(items: any[]) {
@@ -274,20 +274,19 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
 
             const processImageObject = (imgObj: any, context: string, type: string, widgetSettings: any = {}) => {
                 if (imgObj?.url) {
-                    // Extract dimensions from various possible locations within the settings
-                    const width = widgetSettings.image_custom_dimension?.width || widgetSettings.image_size?.width || imgObj.width || null;
-                    const height = widgetSettings.image_custom_dimension?.height || widgetSettings.image_size?.height || imgObj.height || null;
+                    const width = widgetSettings.image_size?.width || widgetSettings.image_custom_dimension?.width || imgObj.width || null;
+                    const height = widgetSettings.image_size?.height || widgetSettings.image_custom_dimension?.height || imgObj.height || null;
                     images.push({ url: imgObj.url, id: imgObj.id || null, width, height, context, widgetType: type });
                 }
             };
             
-            // Handle dynamic images (e.g., featured image fallbacks)
+            // Handle dynamic images like featured image fallbacks
             if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
                 try {
                     const tagString = settings.__dynamic__.image;
                     const settingsMatch = tagString.match(/settings="([^"]+)"/);
                     if (settingsMatch && settingsMatch[1]) {
-                        const decodedSettings = decodeURIComponent(settingsMatch[1]);
+                        const decodedSettings = decodeURIComponent(settingsMatch[1].replace(/&quot;/g, '"'));
                         const parsedSettings = JSON.parse(decodedSettings);
                         if (parsedSettings.fallback) {
                             processImageObject(parsedSettings.fallback, 'Imagen Destacada (Fallback)', widgetType, settings);
@@ -298,7 +297,6 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
                 }
             }
 
-            // Check all known keys for images
             for (const key of imageKeys) {
                 if (settings[key]) {
                     processImageObject(settings[key], contextText, widgetType, settings);
@@ -306,7 +304,7 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
             }
             
             // Specific logic for array-based widgets like sliders or galleries
-            if (widgetType === 'slides' && Array.isArray(settings?.slides)) {
+            if ((widgetType === 'slides' || widgetType === 'slides-extended') && Array.isArray(settings?.slides)) {
                 settings.slides.forEach((slide: any) => processImageObject(slide.background_image, slide.heading || `Slide en ${widgetType}`, widgetType, slide));
             }
             if ((widgetType === 'media-carousel' || widgetType === 'image-carousel') && Array.isArray(settings?.slides)) {
@@ -316,7 +314,6 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
                 settings.gallery.forEach((galleryImage: any) => processImageObject(galleryImage, `Galería de imágenes`, widgetType, settings));
             }
 
-            // Recurse into nested elements
             if (item.elements && Array.isArray(item.elements) && item.elements.length > 0) {
                 traverse(item.elements);
             }
@@ -324,7 +321,6 @@ export function findElementorImageContext(elementorData: any[]): { url: string; 
     }
 
     traverse(elementorData);
-    // Return unique images based on URL to avoid duplicates
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
 
