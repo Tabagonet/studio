@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import * as React from "react";
@@ -29,7 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, SearchCheck, Languages, X, ChevronDown, Trash2 } from "lucide-react";
+import { Loader2, SearchCheck, Languages, X, ChevronDown, Trash2, Edit } from "lucide-react";
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
 import { getColumns } from '@/app/(app)/pages/columns';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -43,6 +42,9 @@ interface PageDataTableProps {
   scores: Record<number, number>;
   isLoading: boolean;
   onDataChange: () => void;
+  onAnalyzePage: (page: ContentItem) => void;
+  onViewReport: (page: ContentItem) => void;
+  onEdit: (item: ContentItem) => void;
   pageCount: number;
   totalItems: number;
   pagination: { pageIndex: number; pageSize: number };
@@ -54,6 +56,9 @@ export function SeoPageListTable({
   scores,
   isLoading,
   onDataChange,
+  onAnalyzePage,
+  onViewReport,
+  onEdit,
   pageCount,
   totalItems,
   pagination,
@@ -63,20 +68,23 @@ export function SeoPageListTable({
   const { toast } = useToast();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({})
+  const [rowSelection, setRowSelection] = React.useState({})
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [isDeleting, setIsDeleting] = React.useState(false);
 
+  const dataWithScores = React.useMemo(() => 
+    data.map(item => ({
+        ...item,
+        score: scores[item.id],
+        subRows: item.subRows?.map(sub => ({ ...sub, score: scores[sub.id] }))
+    })), [data, scores]);
+  
   const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
     en: 'Inglés',
     fr: 'Francés',
     de: 'Alemán',
     pt: 'Portugués',
-  };
-
-  const handleEditContent = (item: ContentItem) => {
-    router.push(`/pages/edit/${item.id}?type=${item.type}`);
   };
 
   const handleDeleteContent = async (item: ContentItem) => {
@@ -140,10 +148,10 @@ export function SeoPageListTable({
     router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
+  const columns = React.useMemo(() => getColumns(onEdit, handleDeleteContent, handleEditImages), [onEdit]);
 
   const table = useReactTable({
-    data,
+    data: dataWithScores,
     columns,
     pageCount: pageCount,
     state: {
@@ -297,7 +305,7 @@ export function SeoPageListTable({
                   onClick={(e) => {
                       const target = e.target as HTMLElement;
                       if (!(target instanceof HTMLButtonElement || target.tagName === 'A' || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
-                        router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
+                        onViewReport(row.original);
                       }
                     }}
                   className="cursor-pointer"

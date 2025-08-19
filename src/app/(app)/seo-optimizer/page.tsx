@@ -43,6 +43,8 @@ export default function SeoOptimizerPage() {
   
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
   const [pageCount, setPageCount] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+
 
   const viewingId = searchParams.get('id');
   const viewingType = searchParams.get('type') || 'Page';
@@ -141,6 +143,8 @@ export default function SeoOptimizerPage() {
         const contentData = await contentResponse.json();
         setContentList(contentData.content);
         setPageCount(contentData.totalPages);
+        setTotalItems(contentData.totalItems || contentData.content.length);
+
 
         const scoresResponse = await fetch('/api/seo/latest-scores', { headers: { 'Authorization': `Bearer ${token}` } });
         if (scoresResponse.ok) {
@@ -359,9 +363,13 @@ export default function SeoOptimizerPage() {
                       <SeoPageListTable 
                         data={contentList}
                         scores={scores}
-                        onAnalyzePage={handleAnalyzePage} 
+                        isLoading={isLoading}
+                        onDataChange={() => { if(auth.currentUser) auth.currentUser.getIdToken().then(fetchContentData) }}
+                        onAnalyzePage={handleAnalyzePage}
                         onViewReport={handleViewReport}
+                        onEdit={handleEditContent}
                         pageCount={pageCount}
+                        totalItems={totalItems}
                         pagination={pagination}
                         setPagination={setPagination}
                       />
