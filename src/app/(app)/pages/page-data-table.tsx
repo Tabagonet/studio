@@ -1,4 +1,4 @@
-
+// src/app/(app)/pages/page-data-table.tsx
 "use client";
 
 import * as React from "react";
@@ -14,9 +14,7 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
-  type RowSelectionState,
   type SortingState,
-  type Row,
 } from "@tanstack/react-table";
 import {
   Table,
@@ -26,67 +24,38 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { SearchCheck, ChevronRight, FileText, Languages, X, Eye, EyeOff, Trash2, Link2, Sparkles, ImageIcon } from "lucide-react";
-import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
-import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { Loader2 } from 'lucide-react';
+import { Loader2, SearchCheck, Languages, X } from "lucide-react";
+import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
 import { getColumns } from './columns';
 
 interface PageDataTableProps {
-  data: ContentItem[];
+  data: HierarchicalContentItem[];
   scores: Record<number, number>;
   isLoading: boolean;
-  onDataChange: (token: string, force: boolean) => void;
+  onDataChange: () => void;
+  pageCount: number;
+  totalItems: number;
+  pagination: { pageIndex: number; pageSize: number };
+  setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
 }
-
-const getStatusText = (status: ContentItem['status']) => {
-    const statusMap: { [key: string]: string } = {
-        publish: 'Publicado',
-        draft: 'Borrador',
-        pending: 'Pendiente',
-        private: 'Privado',
-        future: 'Programado',
-    };
-    return statusMap[status] || status;
-};
-
-const ScoreBadge = ({ score }: { score: number | undefined }) => {
-    if (score === undefined) return null;
-    
-    const scoreColor = score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-amber-500' : 'bg-destructive';
-
-    return (
-        <Badge className={cn("text-white", scoreColor)}>{score}</Badge>
-    );
-};
 
 export function PageDataTable({
   data,
   scores,
   isLoading,
   onDataChange,
+  pageCount,
+  totalItems,
+  pagination,
+  setPagination,
 }: PageDataTableProps) {
   const router = useRouter();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
-  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
-  const [isActionLoading, setIsActionLoading] = React.useState(false);
-  
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
-
-  const { toast } = useToast();
   
   const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
@@ -96,271 +65,44 @@ export function PageDataTable({
     pt: 'Portugués',
   };
 
-  const tableData = React.useMemo((): HierarchicalContentItem[] => {
-    if (!data) return [];
-    
-    const enrichedData = data.map(item => ({ ...item, score: scores[item.id] }));
-    
-    const itemsById = new Map<number, HierarchicalContentItem>(enrichedData.map((p) => [p.id, { ...p, subRows: [] }]));
-    const roots: HierarchicalContentItem[] = [];
-    const processedIds = new Set<number>();
-
-    enrichedData.forEach((item) => {
-        if (processedIds.has(item.id)) return;
-
-        let mainItem: HierarchicalContentItem | undefined;
-        const translationIds = new Set(Object.values(item.translations || {}));
-        
-        if (translationIds.size > 1) {
-            const groupItems = Array.from(translationIds)
-                .map(id => itemsById.get(id))
-                .filter((p): p is HierarchicalContentItem => !!p);
-            
-            if (groupItems.length > 0) {
-                mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
-                
-                if (mainItem) {
-                  mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
-                  groupItems.forEach(groupItem => processedIds.add(groupItem.id));
-                }
-            }
-        }
-        
-        if (!mainItem) {
-          mainItem = itemsById.get(item.id);
-        }
-        
-        if (mainItem && !processedIds.has(mainItem.id)) {
-            roots.push(mainItem);
-            processedIds.add(mainItem.id);
-        }
-    });
-
-    return roots.sort((a,b) => a.title.localeCompare(b.title));
-  }, [data, scores]);
-  
   const handleEditContent = (item: ContentItem) => {
-    router.push(`/pages/edit/${item.id}?type=${item.type}`);
-  };
-  
-  const handleEditImages = (item: ContentItem) => {
-    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
+    router.push(`/seo-optimizer/edit/${item.id}?type=${item.type}`);
   };
 
-  const handleDeleteContent = async (item: ContentItem) => {
-    const user = auth.currentUser;
-    if (!user) {
-      toast({ title: 'No autenticado', variant: 'destructive' });
-      return;
-    }
-    const token = await user.getIdToken();
-    try {
-      const endpoint = `/api/wordpress/pages/${item.id}`;
-      const response = await fetch(endpoint, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || result.message);
-      toast({ title: "Movido a la papelera", description: "El contenido ha sido enviado a la papelera de WordPress." });
-      onDataChange(token, true);
-    } catch (e: any) {
-      toast({ title: "Error al mover a papelera", description: e.message, variant: "destructive" });
-    }
-  };
-
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
+  const columns = React.useMemo(() => getColumns(handleEditContent), []);
 
   const table = useReactTable({
-    data: tableData,
+    data,
     columns,
+    pageCount: pageCount,
     state: {
       sorting,
       expanded,
       columnFilters,
-      rowSelection,
       pagination,
     },
     onPaginationChange: setPagination,
     onSortingChange: setSorting,
     onExpandedChange: setExpanded,
     onColumnFiltersChange: setColumnFilters,
-    onRowSelectionChange: setRowSelection,
     getSubRows: (row) => row.subRows,
     getCoreRowModel: getCoreRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
+    manualPagination: true,
   });
-  
-  const handleBatchStatusUpdate = async (status: 'publish' | 'draft') => {
-    setIsActionLoading(true);
-    const selectedRows = table.getSelectedRowModel().rows;
-    const postIds = selectedRows.flatMap(row => [row.original.id, ...(row.original.subRows?.map(sub => sub.id) || [])]);
-    const uniqueIds = [...new Set(postIds)];
-
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: 'No autenticado', variant: 'destructive' });
-        setIsActionLoading(false);
-        return;
-    }
-    const token = await user.getIdToken();
-    try {
-        const response = await fetch('/api/wordpress/posts/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ postIds: uniqueIds, action: 'update', updates: { status } })
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || result.message);
-        toast({ title: `Estado actualizado a "${status}"`, description: result.message });
-        onDataChange(token, true);
-        table.resetRowSelection();
-    } catch (e: any) {
-        toast({ title: "Error al actualizar estado", description: e.message, variant: "destructive" });
-    } finally {
-        setIsActionLoading(false);
-    }
-  };
-
-
-  const handleBatchDelete = async () => {
-    setIsActionLoading(true);
-    const selectedRows = table.getSelectedRowModel().rows;
-    const postIds = selectedRows.flatMap(row => [row.original.id, ...(row.original.subRows?.map(sub => sub.id) || [])]);
-    const uniqueIds = [...new Set(postIds)];
-
-    const user = auth.currentUser;
-    if (!user) {
-        toast({ title: 'No autenticado', variant: 'destructive' });
-        setIsActionLoading(false);
-        return;
-    }
-    const token = await user.getIdToken();
-    try {
-        const response = await fetch('/api/wordpress/posts/batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ postIds: uniqueIds, action: 'delete' })
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || result.message);
-        toast({ title: "Contenido movido a la papelera", description: result.message });
-        onDataChange(token, true);
-        table.resetRowSelection();
-    } catch (e: any) {
-        toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
-    } finally {
-        setIsActionLoading(false);
-    }
-  };
-  
-  const handleBatchLinkTranslations = async () => {
-    setIsActionLoading(true);
-    const selectedRows = table.getSelectedRowModel().rows;
-    
-    if (selectedRows.length < 2) {
-        toast({ title: "Selección insuficiente", description: "Debes seleccionar al menos dos elementos para enlazarlos.", variant: "destructive" });
-        setIsActionLoading(false);
-        return;
-    }
-
-    const languages = selectedRows.map((row: Row<HierarchicalContentItem>) => row.original.lang);
-    if (new Set(languages).size !== languages.length) {
-        toast({ title: "Idiomas duplicados", description: "No puedes enlazar dos elementos del mismo idioma.", variant: "destructive" });
-        setIsActionLoading(false);
-        return;
-    }
-    
-    const translations: Record<string, number> = {};
-    selectedRows.forEach((row: Row<HierarchicalContentItem>) => {
-        if(row.original.lang) {
-            translations[row.original.lang] = row.original.id;
-        }
-    });
-
-    const user = auth.currentUser;
-    if (!user) {
-        setIsActionLoading(false);
-        return;
-    }
-
-    toast({ title: `Enlazando ${selectedRows.length} elemento(s)...` });
-    try {
-        const token = await user.getIdToken();
-        const response = await fetch('/api/wordpress/posts/link-translations', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ translations })
-        });
-
-        const result = await response.json();
-        if (!response.ok) {
-            throw new Error(result.error || result.message || 'Fallo el enlace de traducciones.');
-        }
-
-        toast({ title: "¡Traducciones enlazadas!", description: result.message });
-        table.resetRowSelection();
-        onDataChange(token, true);
-    } catch (error: any) {
-         toast({ title: "Error al enlazar", description: error.message, variant: "destructive" });
-    } finally {
-        setIsActionLoading(false);
-    }
-  };
-
-  const handleBatchSeoMeta = async () => {
-    const selectedRows = table.getSelectedRowModel().rows;
-    if (selectedRows.length === 0) {
-      toast({ title: "Nada seleccionado", description: "Por favor, selecciona al menos una página.", variant: "destructive" });
-      return;
-    }
-    setIsActionLoading(true);
-    const user = auth.currentUser;
-    if (!user) return;
-    const token = await user.getIdToken();
-    let successes = 0;
-    
-    toast({ title: `Procesando ${selectedRows.length} elemento(s) con IA...`, description: "Esto puede tardar un momento." });
-    
-    for (const row of selectedRows) {
-      try {
-        const response = await fetch('/api/batch-actions/seo-meta', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ postId: row.original.id, postType: row.original.type })
-        });
-        if (response.ok) {
-          successes++;
-        } else {
-            console.error(`Fallo para ${row.original.title}:`, await response.json());
-        }
-      } catch (error) {
-        console.error(`Fallo para ${row.original.title}:`, error);
-      }
-    }
-    
-    toast({ title: "Proceso Completado", description: `${successes} de ${selectedRows.length} elementos han sido actualizados con metadatos SEO.` });
-    setIsActionLoading(false);
-    table.resetRowSelection();
-  };
-  
-  const selectedRowCount = Object.keys(rowSelection).length;
-  
-  const handleBatchEditImages = () => {
-    const selectedIds = table.getSelectedRowModel().rows.map(row => row.original.id);
-    router.push(`/pages/edit-images?ids=${selectedIds.join(',')}&type=Page`);
-  };
-
-  const handleRowClick = (row: any) => {
-    router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
-  };
   
   const availableLanguages = React.useMemo(() => {
     const langSet = new Set<string>();
     data.forEach(item => {
-        if (item.lang && item.lang !== 'default') langSet.add(item.lang);
+        if (item.lang) langSet.add(item.lang);
+        item.subRows?.forEach(sub => {
+            if(sub.lang) langSet.add(sub.lang);
+        });
     });
-    return Array.from(langSet).map(code => ({ code, name: LANGUAGE_MAP[code as keyof typeof LANGUAGE_MAP] || code.toUpperCase() }));
+    return Array.from(langSet).map(code => ({ code, name: LANGUAGE_MAP[code] || code.toUpperCase() }));
   }, [data]);
   
   const titleFilterValue = (table.getColumn('title')?.getFilterValue() as string) ?? '';
@@ -387,19 +129,6 @@ export function PageDataTable({
                 </Button>
               )}
             </div>
-            <Select
-                value={(table.getColumn('type')?.getFilterValue() as string) ?? 'all'}
-                onValueChange={(value) => table.getColumn('type')?.setFilterValue(value === 'all' ? undefined : value)}
-            >
-                <SelectTrigger className="w-full sm:w-[180px]">
-                    <SelectValue placeholder="Filtrar por tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">Todos los Tipos</SelectItem>
-                    <SelectItem value="Page">Páginas</SelectItem>
-                     <SelectItem value="Categoría de Entradas">Cat. Entradas</SelectItem>
-                </SelectContent>
-            </Select>
             <Select
                 value={(table.getColumn('status')?.getFilterValue() as string) ?? 'all'}
                 onValueChange={(value) => table.getColumn('status')?.setFilterValue(value === 'all' ? null : value)}
@@ -432,54 +161,6 @@ export function PageDataTable({
                 </SelectContent>
             </Select>
         </div>
-        
-        <AlertDialog>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button variant="outline" disabled={selectedRowCount === 0 || isActionLoading} className="w-full md:w-auto">
-                    {isActionLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronRight className="mr-2 h-4 w-4" />}
-                    Acciones ({selectedRowCount})
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Acciones en Lote</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('publish')}>
-                <Eye className="mr-2 h-4 w-4" /> Hacer Visibles (Publicar)
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => handleBatchStatusUpdate('draft')}>
-                <EyeOff className="mr-2 h-4 w-4" /> Ocultar (Borrador)
-              </DropdownMenuItem>
-               <DropdownMenuItem onSelect={handleBatchEditImages}>
-                <ImageIcon className="mr-2 h-4 w-4" /> Editar Imágenes
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleBatchSeoMeta}>
-                <Sparkles className="mr-2 h-4 w-4" /> Generar Título y Descripción SEO
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleBatchLinkTranslations} disabled={selectedRowCount < 2}>
-                <Link2 className="mr-2 h-4 w-4" /> Enlazar Traducciones
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <AlertDialogTrigger asChild>
-                <DropdownMenuItem className="text-destructive focus:text-destructive">
-                  <Trash2 className="mr-2 h-4 w-4" /> Mover a la Papelera
-                </DropdownMenuItem>
-              </AlertDialogTrigger>
-            </DropdownMenuContent>
-          </DropdownMenu>
-          <AlertDialogContent>
-              <AlertDialogHeader>
-                  <AlertDialogTitle>¿Mover a la papelera?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                      Los elementos seleccionados y todas sus traducciones enlazadas se moverán a la papelera de WordPress.
-                  </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleBatchDelete} className={buttonVariants({variant: "destructive"})}>Sí, mover a la papelera</AlertDialogAction>
-              </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
       </div>
 
       <div className="rounded-md border">
@@ -510,7 +191,7 @@ export function PageDataTable({
                   onClick={(e) => {
                       const target = e.target as HTMLElement;
                       if (!(target instanceof HTMLButtonElement || target.tagName === 'A' || target.closest('button, a, [role=checkbox], [role=menuitem]') )) {
-                        handleRowClick(row);
+                        router.push(`/seo-optimizer?id=${row.original.id}&type=${row.original.type}`);
                       }
                     }}
                   className="cursor-pointer"
@@ -535,7 +216,7 @@ export function PageDataTable({
       
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-           Total de páginas en el sitio: {data.length}. Mostrando {table.getRowModel().rows.length} en la vista actual.
+           Total de páginas (principales) encontradas: {totalItems}
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

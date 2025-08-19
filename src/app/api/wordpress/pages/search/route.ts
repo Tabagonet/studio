@@ -2,7 +2,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
-import type { ContentItem } from '@/lib/types';
+import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
+import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,42 @@ function transformPageToContentItem(page: any, allFrontPageIds: Set<number>): Co
   };
 }
 
+// Fetches ALL pages from WordPress, but only the lightweight fields needed for mapping translations.
+async function fetchAllPageIdsAndTranslations(wpApi: AxiosInstance): Promise<Map<number, ContentItem>> {
+    const allPagesMap = new Map<number, ContentItem>();
+    let currentPage = 1;
+    const perPage = 100;
+
+    while (true) {
+        try {
+            const response = await wpApi.get('pages', {
+                params: {
+                    per_page: perPage,
+                    page: currentPage,
+                    context: 'view',
+                    _fields: 'id,lang,translations,parent,title,status,link,modified,slug', // Minimal fields
+                    lang: '', 
+                    status: 'publish,future,draft,pending,private,trash'
+                }
+            });
+            
+            if (response.data.length === 0) {
+                break;
+            }
+
+            response.data.forEach((page: any) => {
+                allPagesMap.set(page.id, transformPageToContentItem(page, new Set()));
+            });
+
+            currentPage++;
+        } catch (error) {
+            console.error(`Error fetching page IDs on page ${currentPage}:`, error);
+            break; // Exit loop on error
+        }
+    }
+    return allPagesMap;
+}
+
 export async function GET(req: NextRequest) {
   let uid: string;
   try {
@@ -36,57 +73,63 @@ export async function GET(req: NextRequest) {
     
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-        return NextResponse.json({ pages: [], totalPages: 0 });
+        return NextResponse.json({ pages: [], totalPages: 0, totalItems: 0 });
     }
     
-    // Determine front page ID to mark it in the list
+    // Step 1: Fetch all pages with minimal data to build a complete translation map
+    const allPagesMap = await fetchAllPageIdsAndTranslations(wpApi);
+
+    // Step 2: Determine front page ID(s)
     let allFrontPageIds = new Set<number>();
     try {
         const settingsRes = await wpApi.get('/settings');
         const frontPageId = settingsRes.data?.page_on_front;
         if (frontPageId) {
-            allFrontPageIds.add(frontPageId);
-            // This custom function might not exist on wpApi, check for it
-            if (typeof (wpApi as any).pll_get_post_translations === 'function') {
-                const translations = await (wpApi as any).pll_get_post_translations(frontPageId);
-                Object.values(translations).forEach(id => allFrontPageIds.add(id as number));
-            }
+            const frontPageTranslations = allPagesMap.get(frontPageId)?.translations || {};
+            Object.values(frontPageTranslations).forEach(id => allFrontPageIds.add(id as number));
         }
     } catch(e) {
         console.warn("Could not retrieve site settings to determine front page.");
     }
-    
-    // Fetch all pages at once by iterating through paginated results
-    const allPages: any[] = [];
-    let currentPage = 1;
-    const perPage = 100; // Max allowed by WP REST API
 
-    while (true) {
-        const response = await wpApi.get('pages', {
-            params: {
-                per_page: perPage,
-                page: currentPage,
-                context: 'view',
-                _embed: false,
-                lang: '', // Fetch all languages
-                status: 'publish,future,draft,pending,private,trash'
-            }
-        });
+    // Step 3: Now, perform the paginated query with all details for the current view
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const perPage = parseInt(searchParams.get('per_page') || '10', 10);
+    
+    // Filter the full map in memory to get the correct pages for the current view
+    const allItems: ContentItem[] = Array.from(allPagesMap.values());
+    
+    const mainLanguageItems = allItems.filter(item => {
+        const lang = item.lang || 'es'; // Assume 'es' if lang not defined
+        const translations = item.translations || {};
+        // It's a main language post if its ID is the value for its own language, or it's the first in the list
+        return translations[lang] === item.id || Object.values(translations)[0] === item.id;
+    });
+
+    const totalItems = mainLanguageItems.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    const paginatedMainItems = mainLanguageItems.slice((page - 1) * perPage, page * perPage);
+
+    // Step 4: Enrich the paginated results with their sub-rows (translations)
+    const finalHierarchicalData: HierarchicalContentItem[] = paginatedMainItems.map(mainItem => {
+        const subRows = Object.values(mainItem.translations || {})
+            .filter(translationId => translationId !== mainItem.id)
+            .map(translationId => allPagesMap.get(translationId))
+            .filter((item): item is ContentItem => !!item)
+            .map(item => ({...item, is_front_page: allFrontPageIds.has(item.id)})); // Ensure sub-rows also get front-page status
         
-        // If the response is empty, we've fetched all pages
-        if (response.data.length === 0) {
-            break; 
-        }
+        return {
+            ...mainItem,
+            is_front_page: allFrontPageIds.has(mainItem.id),
+            subRows: subRows
+        };
+    });
 
-        allPages.push(...response.data);
-        currentPage++;
-    }
-
-    const pages: ContentItem[] = allPages.map((page: any) => transformPageToContentItem(page, allFrontPageIds));
-    
     return NextResponse.json({ 
-        pages: pages,
-        totalItems: allPages.length,
+        pages: finalHierarchicalData,
+        totalPages: totalPages,
+        totalItems: totalItems,
     });
 
   } catch (error: any) {

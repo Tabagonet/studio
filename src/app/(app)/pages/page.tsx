@@ -1,4 +1,4 @@
-
+// src/app/(app)/pages/page.tsx
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -7,19 +7,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { FileText, Loader2, RefreshCw } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from "@/lib/firebase";
 import { PageDataTable } from "./page-data-table";
-import type { ContentItem } from '@/lib/types';
+import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
 import Link from 'next/link';
 import { Skeleton } from '@/components/ui/skeleton';
 
 
 export default function PagesManagementPage() {
-  const [data, setData] = useState<ContentItem[]>([]);
+  const [data, setData] = useState<HierarchicalContentItem[]>([]);
   const [scores, setScores] = useState<Record<number, number>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [pageCount, setPageCount] = useState(0);
+  const [totalItems, setTotalItems] = useState(0);
+  const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
   
   const router = useRouter();
   const { toast } = useToast();
@@ -28,7 +31,10 @@ export default function PagesManagementPage() {
     setIsLoading(true);
     setError(null);
     try {
-        const params = new URLSearchParams();
+        const params = new URLSearchParams({
+            page: (pagination.pageIndex + 1).toString(),
+            per_page: pagination.pageSize.toString(),
+        });
         if (forceRefresh) {
             params.set('cache_bust', Date.now().toString());
         }
@@ -44,6 +50,8 @@ export default function PagesManagementPage() {
         }
         const contentData = await contentResponse.json();
         setData(contentData.pages || []);
+        setPageCount(contentData.totalPages || 0);
+        setTotalItems(contentData.totalItems || 0);
 
         if (scoresResponse.ok) {
             const scoresData = await scoresResponse.json();
@@ -61,7 +69,9 @@ export default function PagesManagementPage() {
                 const normalized = normalizeUrl(url);
                 if (normalized) normalizedScoresMap.set(normalized, score);
             }
-            (contentData.pages || []).forEach((item: ContentItem) => {
+            // Populate scores for both main items and sub-rows
+            const allItems = contentData.pages?.flatMap((item: HierarchicalContentItem) => [item, ...(item.subRows || [])]) || [];
+            allItems.forEach((item: ContentItem) => {
                 if (item.link) {
                   const normalizedItemLink = normalizeUrl(item.link);
                   if (normalizedItemLink && normalizedScoresMap.has(normalizedItemLink)) {
@@ -78,7 +88,7 @@ export default function PagesManagementPage() {
     } finally {
         setIsLoading(false);
     }
-  }, []);
+  }, [pagination]);
   
   const handleRefresh = () => {
     const user = auth.currentUser;
@@ -146,7 +156,11 @@ export default function PagesManagementPage() {
          data={data} 
          scores={scores}
          isLoading={isLoading} 
-         onDataChange={(token: string) => fetchData(token, true)}
+         onDataChange={() => { if(auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, true)) }}
+         pageCount={pageCount}
+         totalItems={totalItems}
+         pagination={pagination}
+         setPagination={setPagination}
        />
     </div>
   );
