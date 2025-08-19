@@ -30,6 +30,7 @@ interface Step1DetailsPhotosProps {
   updateProductData: (data: Partial<ProductData>) => void;
   isProcessing?: boolean;
   onPhotosChange: (photos: ProductPhoto[]) => void;
+  onCropImage: (photo: ProductPhoto) => void;
 }
 
 const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'exists' | 'available'; message: string }) => {
@@ -40,7 +41,7 @@ const StatusIndicator = ({ status, message }: { status: 'idle' | 'checking' | 'e
     return <div className={`flex items-center text-xs ${color} mt-1`}><Icon className="h-3 w-3 mr-1" /> {message}</div>;
 };
 
-export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false, onPhotosChange }: Step1DetailsPhotosProps) {
+export function Step1DetailsPhotos({ productData, updateProductData, isProcessing = false, onPhotosChange, onCropImage }: Step1DetailsPhotosProps) {
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
@@ -241,7 +242,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags, // Pass as an array
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -276,7 +277,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             imageDescription: aiContent.imageDescription,
         });
 
-        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado las descripciones, palabras clave y metadatos de imagen." });
+        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado las descripciones, etiquetas y metadatos de imagen." });
 
     } catch (error: any) {
         toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 10000 });
@@ -297,7 +298,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
         const payload = {
             productName: productData.name, productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags, // Pass as an array
             language: productData.language, mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {

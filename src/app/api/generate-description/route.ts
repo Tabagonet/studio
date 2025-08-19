@@ -1,9 +1,8 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef as getEntityRefHelper } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
@@ -24,6 +23,7 @@ const ImageMetaOnlySchema = z.object({
   imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
   imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
+
 
 async function getCreditEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.array(z.string()).optional(),
+        tags: z.array(z.string()).optional(), // Corrected to array of strings
         language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).optional().default('Spanish'),
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
     const clientInput = validationResult.data;
     
     const { wooApi, activeConnectionKey } = await getApiClientsForUser(uid);
-    const [entityRef] = await getEntityRef(uid);
+    const [entityRef] = await getEntityRefHelper(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
@@ -110,6 +110,7 @@ export async function POST(req: NextRequest) {
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
+    // Join array of tags into a comma-separated string for the template
     const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: (clientInput.tags || []).join(', '), groupedProductsList };
     const finalPrompt = template(templateData);
     
@@ -135,6 +136,4 @@ export async function POST(req: NextRequest) {
     if (error instanceof z.ZodError) {
         errorMessage = 'La IA falló: ' + JSON.stringify(error.errors);
     }
-    return NextResponse.json({ error: errorMessage }, { status: 500 });
-  }
-}
+    return NextResponse.json({ error: errorMessage }, { status: 5
