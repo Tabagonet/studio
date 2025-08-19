@@ -39,8 +39,15 @@ export async function POST(req: NextRequest) {
         
         const contentType = imageResponse.headers['content-type'] || 'image/webp';
         
-        // Use NextResponse with the Buffer. It can handle Node.js buffers correctly.
-        return new NextResponse(processedBuffer, {
+        // Final, robust solution: Explicitly convert Node.js Buffer to a standard ArrayBuffer.
+        const arrayBuffer = new ArrayBuffer(processedBuffer.length);
+        const view = new Uint8Array(arrayBuffer);
+        for (let i = 0; i < processedBuffer.length; ++i) {
+            view[i] = processedBuffer[i];
+        }
+        
+        // Use the standard Web Response API, which correctly handles ArrayBuffer.
+        return new Response(arrayBuffer, {
             status: 200,
             headers: { 'Content-Type': contentType }
         });
