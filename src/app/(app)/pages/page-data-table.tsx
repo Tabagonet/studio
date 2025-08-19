@@ -46,6 +46,9 @@ interface PageDataTableProps {
   totalItems: number;
   pagination: { pageIndex: number; pageSize: number };
   setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
+  onEdit: (item: ContentItem) => void;
+  onDelete: (item: ContentItem) => void;
+  onEditImages: (item: ContentItem) => void;
 }
 
 export function PageDataTable({
@@ -57,6 +60,9 @@ export function PageDataTable({
   totalItems,
   pagination,
   setPagination,
+  onEdit,
+  onDelete,
+  onEditImages,
 }: PageDataTableProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -66,6 +72,12 @@ export function PageDataTable({
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
   const [isDeleting, setIsDeleting] = React.useState(false);
 
+  const dataWithScores = React.useMemo(() => 
+    data.map(item => ({
+        ...item,
+        score: scores[item.id],
+        subRows: item.subRows?.map(sub => ({ ...sub, score: scores[sub.id] }))
+    })), [data, scores]);
   
   const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
@@ -73,34 +85,6 @@ export function PageDataTable({
     fr: 'Francés',
     de: 'Alemán',
     pt: 'Portugués',
-  };
-
-  const handleEditContent = (item: ContentItem) => {
-    router.push(`/pages/edit/${item.id}?type=${item.type}`);
-  };
-
-  const handleDeleteContent = async (item: ContentItem) => {
-    setIsDeleting(true);
-    const user = auth.currentUser;
-    if (!user) {
-      toast({ title: 'Error de autenticación', variant: 'destructive' });
-      setIsDeleting(false); return;
-    }
-
-    try {
-        const token = await user.getIdToken();
-        const response = await fetch(`/api/wordpress/pages/${item.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error('Fallo al mover a la papelera.');
-        toast({ title: "Movido a la papelera", description: `"${item.title}" ha sido movido a la papelera.` });
-        onDataChange();
-    } catch(e: any) {
-         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
-    } finally {
-        setIsDeleting(false);
-    }
   };
   
   const handleBatchDelete = async () => {
@@ -136,14 +120,10 @@ export function PageDataTable({
     }
   };
 
-  const handleEditImages = (item: ContentItem) => {
-    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
-  };
-
-  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
+  const columns = React.useMemo(() => getColumns(onEdit, onDelete, onEditImages), [onEdit, onDelete, onEditImages]);
 
   const table = useReactTable({
-    data,
+    data: dataWithScores,
     columns,
     pageCount: pageCount,
     state: {

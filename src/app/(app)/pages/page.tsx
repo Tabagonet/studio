@@ -98,6 +98,39 @@ export default function PagesManagementPage() {
     }
   };
 
+  const handleEditContent = (item: ContentItem) => {
+    router.push(`/pages/edit/${item.id}`);
+  };
+
+  const handleDeleteContent = async (item: ContentItem) => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/wordpress/pages/${item.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Fallo al mover a la papelera.');
+        toast({ title: "Movido a la papelera", description: `"${item.title}" ha sido movido a la papelera.` });
+        onDataChange();
+    } catch(e: any) {
+         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleEditImages = (item: ContentItem) => {
+    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
+  };
+
+  const onDataChange = () => {
+    if(auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, true))
+  };
+
   useEffect(() => {
     const handleAuth = (user: import('firebase/auth').User | null) => {
         if (user) {
@@ -152,15 +185,18 @@ export default function PagesManagementPage() {
           </Alert>
       )}
       
-       <SeoPageListTable 
+       <PageDataTable 
          data={data} 
          scores={scores}
          isLoading={isLoading} 
-         onDataChange={() => { if(auth.currentUser) auth.currentUser.getIdToken().then(token => fetchData(token, true)) }}
+         onDataChange={onDataChange}
          pageCount={pageCount}
          totalItems={totalItems}
          pagination={pagination}
          setPagination={setPagination}
+         onEdit={handleEditContent}
+         onDelete={handleDeleteContent}
+         onEditImages={handleEditImages}
        />
     </div>
   );

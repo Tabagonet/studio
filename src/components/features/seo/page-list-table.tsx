@@ -11,7 +11,6 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
-  type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
   type RowSelectionState,
@@ -28,10 +27,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, SearchCheck, Languages, X, ChevronDown, Trash2, Edit } from "lucide-react";
+import { Loader2, Languages, X, ChevronDown, Trash2, Edit2, SearchCheck, FileText } from "lucide-react";
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
 import { getColumns } from '@/app/(app)/pages/columns';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuLabel } from "@/components/ui/dropdown-menu";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
@@ -42,13 +41,15 @@ interface PageDataTableProps {
   scores: Record<number, number>;
   isLoading: boolean;
   onDataChange: () => void;
-  onAnalyzePage: (page: ContentItem) => void;
-  onViewReport: (page: ContentItem) => void;
-  onEdit: (item: ContentItem) => void;
   pageCount: number;
   totalItems: number;
   pagination: { pageIndex: number; pageSize: number };
   setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
+  onAnalyzePage: (page: ContentItem) => void;
+  onViewReport: (page: ContentItem) => void;
+  onEdit: (item: ContentItem) => void;
+  onDelete: (item: ContentItem) => void;
+  onEditImages: (item: ContentItem) => void;
 }
 
 export function SeoPageListTable({
@@ -56,13 +57,15 @@ export function SeoPageListTable({
   scores,
   isLoading,
   onDataChange,
-  onAnalyzePage,
-  onViewReport,
-  onEdit,
   pageCount,
   totalItems,
   pagination,
   setPagination,
+  onAnalyzePage,
+  onViewReport,
+  onEdit,
+  onDelete,
+  onEditImages,
 }: PageDataTableProps) {
   const router = useRouter();
   const { toast } = useToast();
@@ -85,30 +88,6 @@ export function SeoPageListTable({
     fr: 'Francés',
     de: 'Alemán',
     pt: 'Portugués',
-  };
-
-  const handleDeleteContent = async (item: ContentItem) => {
-    setIsDeleting(true);
-    const user = auth.currentUser;
-    if (!user) {
-      toast({ title: 'Error de autenticación', variant: 'destructive' });
-      setIsDeleting(false); return;
-    }
-
-    try {
-        const token = await user.getIdToken();
-        const response = await fetch(`/api/wordpress/pages/${item.id}`, {
-            method: 'DELETE',
-            headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) throw new Error('Fallo al mover a la papelera.');
-        toast({ title: "Movido a la papelera", description: `"${item.title}" ha sido movido a la papelera.` });
-        onDataChange();
-    } catch(e: any) {
-         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
-    } finally {
-        setIsDeleting(false);
-    }
   };
   
   const handleBatchDelete = async () => {
@@ -144,11 +123,7 @@ export function SeoPageListTable({
     }
   };
 
-  const handleEditImages = (item: ContentItem) => {
-    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
-  };
-
-  const columns = React.useMemo(() => getColumns(onEdit, handleDeleteContent, handleEditImages), [onEdit]);
+  const columns = React.useMemo(() => getColumns(onEdit, onDelete, onEditImages), [onEdit, onDelete, onEditImages]);
 
   const table = useReactTable({
     data: dataWithScores,

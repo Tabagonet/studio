@@ -284,6 +284,35 @@ export default function SeoOptimizerPage() {
     router.push(url);
   };
   
+    const handleDeleteContent = async (item: ContentItem) => {
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/wordpress/pages/${item.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Fallo al mover a la papelera.');
+        toast({ title: "Movido a la papelera", description: `"${item.title}" ha sido movido a la papelera.` });
+        onDataChange();
+    } catch(e: any) {
+         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleEditImages = (item: ContentItem) => {
+    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
+  };
+
+  const onDataChange = () => {
+    if (auth.currentUser) auth.currentUser.getIdToken().then(fetchContentData);
+  }
+
   const handleSelectHistoryItem = (record: SeoAnalysisRecord) => {
     setAnalysisRecord(record);
     toast({
@@ -364,10 +393,12 @@ export default function SeoOptimizerPage() {
                         data={contentList}
                         scores={scores}
                         isLoading={isLoading}
-                        onDataChange={() => { if(auth.currentUser) auth.currentUser.getIdToken().then(fetchContentData) }}
+                        onDataChange={onDataChange}
                         onAnalyzePage={handleAnalyzePage}
                         onViewReport={handleViewReport}
                         onEdit={handleEditContent}
+                        onDelete={handleDeleteContent}
+                        onEditImages={handleEditImages}
                         pageCount={pageCount}
                         totalItems={totalItems}
                         pagination={pagination}
