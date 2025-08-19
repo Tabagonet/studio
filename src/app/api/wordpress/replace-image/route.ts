@@ -177,7 +177,8 @@ Generate the metadata now. The "seoFilename" should be a URL-friendly slug witho
         }
         
         if (adminDb) {
-            await adminDb.collection('user_settings').doc(uid).set({ 
+            const [entityRef] = await getEntityRef(uid);
+            await entityRef.set({ 
                 aiUsageCount: admin.firestore.FieldValue.increment(1) 
             }, { merge: true });
         }

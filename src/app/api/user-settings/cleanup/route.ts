@@ -58,8 +58,21 @@ export async function DELETE(req: NextRequest) {
         // --- Delete Notifications ---
         const notificationsQuery = adminDb.collection('notifications').where('recipientUid', '==', uid);
         await new Promise((resolve, reject) => deleteQueryBatch(adminDb!, notificationsQuery, resolve, reject));
+        
+        // --- Delete SEO Analyses ---
+        const seoAnalysesQuery = adminDb.collection('seo_analyses').where('userId', '==', uid);
+        await new Promise((resolve, reject) => deleteQueryBatch(adminDb!, seoAnalysesQuery, resolve, reject));
+        
+        // --- Delete Ad Plans ---
+        const adPlansQuery = adminDb.collection('ad_plans').where('userId', '==', uid);
+        await new Promise((resolve, reject) => deleteQueryBatch(adminDb!, adPlansQuery, resolve, reject));
 
-        return NextResponse.json({ success: true, message: 'Your activity logs and notifications have been cleared.' });
+        // --- Delete Competitor Analyses ---
+        const competitorAnalysesQuery = adminDb.collection('competitor_analyses').where('userId', '==', uid);
+        await new Promise((resolve, reject) => deleteQueryBatch(adminDb!, competitorAnalysesQuery, resolve, reject));
+
+
+        return NextResponse.json({ success: true, message: 'Tu historial de actividad y notificaciones ha sido eliminado.' });
 
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
