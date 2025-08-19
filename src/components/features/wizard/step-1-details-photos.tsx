@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -590,7 +591,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               <Card>
                 <CardHeader><CardTitle>Imágenes del Producto</CardTitle><CardDescription>Sube las imágenes para tu producto. La primera se usará como principal.</CardDescription></CardHeader>
                 <CardContent className="space-y-4">
-                  <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} onCropImage={onCropImage} isProcessing={isProcessing || isGenerating} maxPhotos={15} />
+                  <ImageUploader photos={productData.photos} onPhotosChange={handlePhotosWithAutoName} isProcessing={isProcessing || isGenerating} maxPhotos={15} onCropImage={onCropImage} />
                   <Button onClick={handleGenerateImageMetadata} disabled={isProcessing || isGenerating || isGeneratingImageMeta || !productData.name} className="w-full" variant="outline">{isGeneratingImageMeta ? ( <Loader2 className="mr-2 h-4 w-4 animate-spin" /> ) : ( <Sparkles className="mr-2 h-4 w-4" /> )}{isGeneratingImageMeta ? "Generando..." : "Generar SEO de Imágenes con IA"}</Button>
                 </CardContent>
               </Card>
