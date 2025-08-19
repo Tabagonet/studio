@@ -1,4 +1,3 @@
-
 // src/app/api/process-image/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
@@ -29,7 +28,6 @@ export async function POST(req: NextRequest) {
         });
         const originalBuffer = Buffer.from(imageResponse.data, 'binary');
 
-        // You can keep the sharp processing if needed, or just return the original
         const processedBuffer = await sharp(originalBuffer)
             .resize(1200, 1200, {
                 fit: 'inside',
@@ -40,8 +38,13 @@ export async function POST(req: NextRequest) {
         
         const contentType = imageResponse.headers['content-type'] || 'image/webp';
         
-        // Use NextResponse to properly handle the Buffer
-        return new NextResponse(processedBuffer, {
+        // Convert the Node.js Buffer to a standard ArrayBuffer that NextResponse can handle.
+        const arrayBuffer = processedBuffer.buffer.slice(
+            processedBuffer.byteOffset,
+            processedBuffer.byteOffset + processedBuffer.byteLength
+        ) as ArrayBuffer;
+        
+        return new NextResponse(arrayBuffer, {
             status: 200,
             headers: { 'Content-Type': contentType }
         });
