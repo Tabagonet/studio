@@ -4,7 +4,7 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import type { BlogPostData, SubmissionStep, SubmissionStatus, ProductPhoto, StepConfirmProps } from '@/lib/types';
+import type { BlogPostData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
 import { INITIAL_BLOG_DATA } from '@/lib/constants';
 import { useToast } from '@/hooks/use-toast';
 import { auth } from '@/lib/firebase';

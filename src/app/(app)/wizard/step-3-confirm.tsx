@@ -1,7 +1,7 @@
 // src/app/(app)/wizard/step-3-confirm.tsx
 import React, { useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import type { StepConfirmProps, ProductData } from "@/lib/types"; 
+import { ProductData, StepConfirmProps } from "@/lib/types"; 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ListChecks, Rocket } from "lucide-react";
 
