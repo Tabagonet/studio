@@ -51,6 +51,11 @@ async function fetchAllPages(wpApi: AxiosInstance): Promise<Map<number, ContentI
                 allPagesMap.set(page.id, transformPageToContentItem(page, new Set()));
             });
 
+            const totalPagesHeader = response.headers['x-wp-totalpages'];
+            if (!totalPagesHeader || currentPage >= parseInt(totalPagesHeader, 10)) {
+                break;
+            }
+
             currentPage++;
         } catch (error) {
             console.error(`Error fetching page IDs on page ${currentPage}:`, error);
@@ -101,8 +106,6 @@ export async function GET(req: NextRequest) {
 
     // Step 3: Filter and build hierarchy from the complete in-memory list
     const { searchParams } = new URL(req.url);
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const perPage = parseInt(searchParams.get('per_page') || '10', 10);
     const titleFilter = searchParams.get('title') || '';
     const statusFilter = searchParams.get('status') || null;
     const langFilter = searchParams.get('lang') || null;
@@ -120,33 +123,37 @@ export async function GET(req: NextRequest) {
        allItems = allItems.filter(item => item.lang === langFilter);
     }
 
-    const mainLanguageItems = allItems.filter(item => {
-        const lang = item.lang || 'es';
-        const translations = item.translations || {};
-        const firstTranslationId = Object.values(translations)[0];
-        // It's a main language post if its ID is the value for its own language,
-        // or if it doesn't have a lang defined but is the first in its translation group.
-        return translations[lang] === item.id || (!item.lang && firstTranslationId === item.id);
-    });
+    const hierarchicalData: HierarchicalContentItem[] = [];
+    const processedIds = new Set<number>();
 
-    const totalItems = mainLanguageItems.length;
-    const totalPages = Math.ceil(totalItems / perPage);
-    const paginatedMainItems = mainLanguageItems.slice((page - 1) * perPage, page * perPage);
+    allItems.forEach(item => {
+        if (processedIds.has(item.id)) return;
 
-    const finalHierarchicalData: HierarchicalContentItem[] = paginatedMainItems.map(mainItem => {
-        const subRows = Object.values(mainItem.translations || {})
-            .filter(translationId => translationId !== mainItem.id)
-            .map(translationId => allPagesMap.get(translationId))
-            .filter((item): item is ContentItem => !!item);
+        const mainItem: HierarchicalContentItem = { ...item, subRows: [] };
         
-        return {
-            ...mainItem,
-            subRows: subRows
-        };
+        const translations = item.translations || {};
+        const isMainLanguageItem = Object.values(translations).includes(item.id);
+
+        if (isMainLanguageItem || Object.keys(translations).length <= 1) {
+             Object.values(translations).forEach(transId => {
+                if (transId !== item.id && allPagesMap.has(transId)) {
+                    mainItem.subRows?.push(allPagesMap.get(transId) as HierarchicalContentItem);
+                    processedIds.add(transId);
+                }
+            });
+            hierarchicalData.push(mainItem);
+            processedIds.add(item.id);
+        }
     });
+
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const perPage = parseInt(searchParams.get('per_page') || '10', 10);
+    const totalItems = hierarchicalData.length;
+    const totalPages = Math.ceil(totalItems / perPage);
+    const paginatedData = hierarchicalData.slice((page - 1) * perPage, page * perPage);
 
     return NextResponse.json({ 
-        pages: finalHierarchicalData,
+        pages: paginatedData,
         totalPages: totalPages,
         totalItems: totalItems,
     });

@@ -1,5 +1,6 @@
 // src/lib/api-helpers.ts
-import { admin, adminDb } from '@/lib/firebase-admin';
+import type * as admin from 'firebase-admin';
+import { adminDb } from '@/lib/firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
 import { createShopifyApi } from '@/lib/shopify';
@@ -30,7 +31,7 @@ interface ApiClients {
   wpApi: AxiosInstance | null;
   shopifyApi: AxiosInstance | null;
   activeConnectionKey: string | null;
-  settings: admin_types.firestore.DocumentData | undefined;
+  settings: admin.firestore.DocumentData | undefined;
   prompts: Record<string, string>; // NEW: Will hold the applicable prompts
 }
 
@@ -115,43 +116,134 @@ export async function getPartnerCredentials(): Promise<PartnerAppConnectionData>
     return partnerAppData.data;
 }
 
-/**
- * Enriches image metadata by fetching from WordPress media API if mediaId is available and dimensions are missing.
- * @param image The image object with url, id, alt, width, height, etc.
- * @param wpApi An initialized Axios instance for the WordPress API.
- * @returns A promise that resolves to the enriched image object.
- */
-export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance) {
-  // If we already have dimensions, there's no need to fetch. Return immediately.
-  if (image && image.width && image.height) {
-    return image;
-  }
-  
-  if (!image.mediaId) {
-    return image; // Can't fetch without an ID
-  }
+function extractWidgetsRecursive(elements: any[], widgets: ExtractedWidget[]): void {
+    if (!elements || !Array.isArray(elements)) return;
 
-  try {
-    const { data } = await wpApi.get(`/media/${image.mediaId}`, { params: { context: 'view', _fields: 'alt_text,media_details' }});
-    // Return a new object with the original data plus the enriched fields.
-    // This prioritizes existing data (like alt from scraper) but adds missing info.
-    return {
-      ...image,
-      alt: image.alt ?? data.alt_text ?? null,
-      width: image.width ?? data.media_details?.width ?? null,
-      height: image.height ?? data.media_details?.height ?? null
-    };
-  } catch (e) {
-    console.warn(`Could not fetch media data for image ${image.mediaId}. It may have been deleted.`, e);
-    return image; // Return original image on failure
-  }
+    for (const element of elements) {
+        if (element.elType === 'widget') {
+             if (element.widgetType === 'heading' && element.settings?.title) {
+                widgets.push({
+                    id: element.id,
+                    tag: element.settings.header_size || 'h2',
+                    text: element.settings.title,
+                    type: 'heading',
+                });
+            } else if (element.widgetType === 'text-editor' && element.settings?.editor) {
+                 widgets.push({
+                    id: element.id,
+                    text: element.settings.editor,
+                    type: 'text-editor',
+                    tag: 'p',
+                });
+            }
+        }
+        
+        if (element.elements && element.elements.length > 0) {
+            extractWidgetsRecursive(element.elements, widgets);
+        }
+    }
 }
 
-/**
- * Recursively finds image URLs, IDs, and context in Elementor JSON data.
- * @param elementorData The Elementor data (elements array, section, column, etc.).
- * @returns An array of objects, each containing image details.
- */
+export function extractElementorWidgets(elementorDataString: string): ExtractedWidget[] {
+    try {
+        const widgets: ExtractedWidget[] = [];
+        if (!elementorDataString) return widgets;
+        const elementorData = JSON.parse(elementorDataString);
+        extractWidgetsRecursive(elementorData, widgets);
+        return widgets;
+    } catch (e) {
+        console.error("Failed to parse or extract Elementor widgets", e);
+        return [];
+    }
+}
+
+function collectElementorTextsRecursive(data: any, texts: string[]): void {
+    if (!data) return;
+
+    if (Array.isArray(data)) {
+        data.forEach(item => collectElementorTextsRecursive(item, texts));
+        return;
+    }
+
+    if (typeof data === 'object') {
+        const keysToTranslate = [
+            'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
+            'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
+            'alert_title', 'alert_description', 'title_text', 'description_text',
+            'title_text_a', 'description_text_a', 'title_text_b', 'description_text_b'
+        ];
+
+        for (const key in data) {
+            if (Object.prototype.hasOwnProperty.call(data, key)) {
+                const value = data[key];
+
+                if (keysToTranslate.includes(key) && typeof value === 'string' && value.trim() !== '') {
+                    texts.push(value);
+                } else if (typeof value === 'object' && value !== null) {
+                    collectElementorTextsRecursive(value, texts);
+                }
+            }
+        }
+    }
+}
+
+export function collectElementorTexts(elements: any[]): string[] {
+    const texts: string[] = [];
+    collectElementorTextsRecursive(elements, texts);
+    return texts;
+}
+
+export function replaceElementorTexts(data: any, translatedTextsOrMap: string[] | Map<string, string>): any {
+    let textIndex = 0;
+    
+    function traverseAndReplace(elements: any[]): any[] {
+        return elements.map(element => {
+            if (!element || typeof element !== 'object') return element;
+
+            const newElement = { ...element };
+            const keysToTranslate = [
+                'title', 'editor', 'text', 'button_text', 'header_title', 'header_subtitle',
+                'description', 'cta_text', 'label', 'placeholder', 'heading', 'sub_heading',
+                'alert_title', 'alert_description', 'title_text', 'description_text',
+                'title_text_a', 'description_text_a', 'title_text_b', 'description_text_b'
+            ];
+
+            if (newElement.settings) {
+                const newSettings: any = { ...newElement.settings };
+                
+                if (Array.isArray(translatedTextsOrMap)) {
+                    for (const key of keysToTranslate) {
+                        if (typeof newSettings[key] === 'string' && newSettings[key].trim() !== '') {
+                            if (textIndex < translatedTextsOrMap.length) {
+                                newSettings[key] = translatedTextsOrMap[textIndex];
+                                textIndex++;
+                            }
+                        }
+                    }
+                } else { // It's a Map
+                     if (translatedTextsOrMap.has(newElement.id)) {
+                         const newText = translatedTextsOrMap.get(newElement.id);
+                         if (newElement.widgetType === 'heading' && newSettings) {
+                            newSettings.title = newText;
+                         } else if (newElement.widgetType === 'text-editor' && newSettings) {
+                             newSettings.editor = newText;
+                         }
+                     }
+                }
+                newElement.settings = newSettings;
+            }
+
+            if (newElement.elements && Array.isArray(newElement.elements)) {
+                newElement.elements = traverseAndReplace(newElement.elements);
+            }
+
+            return newElement;
+        });
+    }
+
+    return traverseAndReplace(data);
+}
+
 export function findElementorImageContext(elementorData: any[]): {
   url: string;
   id: number | null;
@@ -190,7 +282,7 @@ export function findElementorImageContext(elementorData: any[]): {
         if (imgObj?.url) {
           const width = widgetSettings.image_size?.width || widgetSettings.image_custom_dimension?.width || imgObj.width || null;
           const height = widgetSettings.image_size?.height || widgetSettings.image_custom_dimension?.height || imgObj.height || null;
-          const alt = imgObj.alt || widgetSettings.alt || null; // Extraer alt del objeto de imagen o widget
+          const alt = imgObj.alt || widgetSettings.alt || null;
           images.push({
             url: imgObj.url,
             id: imgObj.id || null,
@@ -203,7 +295,6 @@ export function findElementorImageContext(elementorData: any[]): {
         }
       };
 
-      // Handle dynamic images like featured image fallbacks
       if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
         try {
           const tagString = settings.__dynamic__.image;
@@ -227,7 +318,6 @@ export function findElementorImageContext(elementorData: any[]): {
         }
       }
 
-      // Specific logic for array-based widgets like sliders or galleries
       const arrayWidgets: { key: string, context: string }[] = [
         { key: 'slides', context: 'Slide' },
         { key: 'gallery', context: 'Galería' },
@@ -253,7 +343,31 @@ export function findElementorImageContext(elementorData: any[]): {
   return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
 
+export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance) {
+  // If we already have dimensions, there's no need to fetch. Return immediately.
+  if (image && image.width && image.height) {
+    return image;
+  }
+  
+  if (!image.mediaId) {
+    return image; // Can't fetch without an ID
+  }
 
+  try {
+    const { data } = await wpApi.get(`/media/${image.mediaId}`, { params: { context: 'view', _fields: 'alt_text,media_details' }});
+    // Return a new object with the original data plus the enriched fields.
+    // This prioritizes existing data (like alt from scraper) but adds missing info.
+    return {
+      ...image,
+      alt: image.alt ?? data.alt_text ?? null,
+      width: image.width ?? data.media_details?.width ?? null,
+      height: image.height ?? data.media_details?.height ?? null
+    };
+  } catch (e) {
+    console.warn(`Could not fetch media data for image ${image.mediaId}. It may have been deleted.`, e);
+    return image; // Return original image on failure
+  }
+}
 
 export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
     const images: { url: string; }[] = [];
@@ -269,18 +383,16 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
                     if (Object.prototype.hasOwnProperty.call(item, key)) {
                         const value = item[key];
                         if (typeof value === 'string') {
-                            // Direct URL checks
                             const imageKeys = ['image', 'content_image', 'bg_image'];
                             if (imageKeys.includes(key) && (value.includes('.jpg') || value.includes('.png') || value.includes('.webp'))) {
                                 images.push({ url: value });
                             }
-                            // Shortcode check
                             let match;
                             while ((match = shortcodeRegex.exec(value)) !== null) {
                                 images.push({ url: match[1] });
                             }
                         } else if (typeof value === 'object') {
-                            traverse([value]); // Recurse into nested objects
+                            traverse([value]);
                         }
                     }
                 }
@@ -289,21 +401,9 @@ export function findBeaverBuilderImages(data: any[]): { url: string; }[] {
     }
 
     traverse(data);
-    return Array.from(new Map(images.map(img => [img.url, img])).values()); // Return unique images
+    return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
 
-/**
- * Uploads an image to the WordPress media library, with optional resizing and cropping.
- * It can handle a URL string or a File object.
- * @param source The URL string of the image or a File object.
- * @param seoFilename A desired filename for SEO purposes.
- * @param imageMetadata Metadata for the image (title, alt, etc.).
- * @param wpApi Initialized Axios instance for WordPress API.
- * @param width Optional. The target width for the image. If null, resizing is skipped for this dimension.
- * @param height Optional. The target height for the image. If null, resizing is skipped for this dimension.
- * @param position Optional. The crop position (e.g., 'center', 'top').
- * @returns The ID of the newly uploaded media item.
- */
 export async function uploadImageToWordPress(
   source: File | string,
   seoFilename: string,
@@ -362,7 +462,6 @@ export async function uploadImageToWordPress(
             throw new Error("WordPress did not return a media ID after upload.");
         }
         
-        // Update metadata in a separate request
         await wpApi.post(`/media/${mediaId}`, {
             title: imageMetadata.title,
             alt_text: imageMetadata.alt_text,
@@ -387,14 +486,6 @@ export async function uploadImageToWordPress(
     }
 }
 
-/**
- * Finds a WP post category by its path (e.g., "Parent > Child") or creates it if it doesn't exist.
- * This version uses precise API searches to avoid duplicates on sites with many categories.
- * @param pathString The category path string.
- * @param wpApi An initialized Axios instance for the WordPress API.
- * @param taxonomy The taxonomy slug (e.g., 'category', 'product_cat').
- * @returns The ID of the final category in the path.
- */
 export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: AxiosInstance, taxonomy: string = 'category'): Promise<number | null> {
     if (!pathString || !pathString.trim()) {
         return null;
@@ -407,24 +498,21 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
 
     for (const part of pathParts) {
         console.log(`[API Helper] Processing path part: "${part}" with parent ID: ${parentId}`);
-        // Search for an existing term with the exact name and parent
         const { data: searchResult } = await wpApi.get(`/${taxonomy}`, {
             params: {
                 search: part,
                 parent: parentId,
-                per_page: 1, // We only need to know if at least one exists
+                per_page: 1,
                 hide_empty: false,
             }
         });
         
-        // Find an exact match from the search results
         const foundTerm = searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId);
 
         if (foundTerm) {
             console.log(`[API Helper] Found existing term for "${part}" with ID: ${foundTerm.id}`);
             parentId = foundTerm.id;
         } else {
-            // If no exact match is found, create the new term
             console.log(`[API Helper] No existing term found for "${part}". Creating...`);
             const { data: newTerm } = await wpApi.post(`/${taxonomy}`, {
                 name: part,
@@ -443,13 +531,6 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
     return finalCategoryId;
 }
 
-
-/**
- * Finds tags by name or creates them if they don't exist in WordPress.
- * @param tagNames An array of tag names.
- * @param wpApi An initialized Axios instance for the WordPress API.
- * @returns A promise that resolves to an array of tag IDs.
- */
 export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance): Promise<number[]> {
   if (!tagNames || tagNames.length === 0) {
     return [];
@@ -472,7 +553,6 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
         tagIds.push(createResponse.data.id);
       }
     } catch (error: any) {
-        // Handle race conditions where a tag might be created between the search and the create call
         if (error.response?.data?.code === 'term_exists') {
             const existingId = error.response.data.data?.term_id;
             if (existingId) {
@@ -511,14 +591,6 @@ export function validateHmac(searchParams: URLSearchParams, clientSecret: string
     }
 }
 
-/**
- * Gets the applicable prompt template based on a hierarchical lookup.
- * This is the core logic for the new prompt architecture.
- * @param promptKey The key of the prompt to retrieve (e.g., 'productDescription').
- * @param connectionKey The key of the active connection.
- * @param entityRef The Firestore document reference for the entity (user or company).
- * @returns The most specific prompt string available.
- */
 export async function getPromptForConnection(
     promptKey: string,
     connectionKey: string | null,
@@ -533,12 +605,10 @@ export async function getPromptForConnection(
             const promptDocRef = entityRef.collection('prompts').doc(connectionKey);
             const promptDoc = await promptDocRef.get();
             
-            // If the specific prompt document exists and has the prompt, use it.
             if (promptDoc.exists && promptDoc.data()?.prompts?.[promptKey]) {
                 console.log(`[API Helper] Using prompt '${promptKey}' from connection '${connectionKey}'.`);
                 return promptDoc.data()!.prompts[promptKey];
             } 
-            // PHASE 4 MIGRATION: If the prompt doc doesn't exist, create it.
             else if (!promptDoc.exists) {
                 console.log(`[API Helper] Migrating: Prompt document for connection '${connectionKey}' not found. Creating with defaults...`);
                 const defaultPrompts: Record<string, string> = {};
@@ -547,12 +617,10 @@ export async function getPromptForConnection(
                 }
                 await promptDocRef.set({ prompts: defaultPrompts, connectionKey: connectionKey, createdAt: admin.firestore.FieldValue.serverTimestamp() });
                 console.log(`[API Helper] Migration complete for '${connectionKey}'.`);
-                // Return the default prompt for this specific key now that the doc is created.
                 return defaultPrompts[promptKey] || defaultPrompt;
             }
         }
         
-        // Fallback to the entity's general prompts (legacy support)
         const entityDoc = await entityRef.get();
         if (entityDoc.exists && entityDoc.data()?.prompts?.[promptKey]) {
             console.log(`[API Helper] Using fallback prompt '${promptKey}' from entity level.`);
@@ -578,48 +646,4 @@ export async function getEntityRef(uid: string): Promise<[admin_types.firestore.
         return [adminDb.collection('companies').doc(userData.companyId), 'company', userData.companyId];
     }
     return [adminDb.collection('user_settings').doc(uid), 'user', uid];
-}
-
-// Function to replace an image URL within Elementor data, also updating the ID.
-export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: string, newId: number): { replaced: boolean, data: any } {
-    let replaced = false;
-
-    function traverse(obj: any): any {
-        if (!obj) return obj;
-
-        if (Array.isArray(obj)) {
-            return obj.map(item => traverse(item));
-        }
-
-        if (typeof obj === 'object') {
-            const newObj: { [key: string]: any } = {};
-            let isImageObject = false;
-
-            if (typeof obj.url === 'string' && obj.url === oldUrl) {
-                isImageObject = true;
-            }
-
-            if (isImageObject) {
-                 newObj.url = newUrl;
-                 newObj.id = newId;
-                 replaced = true;
-                 for (const key in obj) {
-                     if (key !== 'url' && key !== 'id') {
-                         newObj[key] = obj[key];
-                     }
-                 }
-            } else {
-                for (const key in obj) {
-                    if (Object.prototype.hasOwnProperty.call(obj, key)) {
-                         newObj[key] = traverse(obj[key]);
-                    }
-                }
-            }
-            return newObj;
-        }
-        return obj;
-    }
-
-    const newData = traverse(data);
-    return { replaced, data: newData };
 }

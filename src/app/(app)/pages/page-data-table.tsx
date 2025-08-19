@@ -14,6 +14,7 @@ import {
   type ColumnDef,
   type ColumnFiltersState,
   type ExpandedState,
+  type RowSelectionState,
   type SortingState,
 } from "@tanstack/react-table";
 import {
@@ -27,20 +28,24 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, SearchCheck, Languages, X } from "lucide-react";
+import { Loader2, SearchCheck, Languages, X, ChevronDown, Trash2 } from "lucide-react";
 import type { ContentItem, HierarchicalContentItem } from '@/lib/types';
 import { getColumns } from './columns';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { auth } from "@/lib/firebase";
+
 
 interface PageDataTableProps {
-  data: ContentItem[];
+  data: HierarchicalContentItem[];
   scores: Record<number, number>;
   isLoading: boolean;
   onDataChange: () => void;
-  // These are now handled locally by the table component
-  // pageCount: number;
-  // totalItems: number;
-  // pagination: { pageIndex: number; pageSize: number };
-  // setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
+  pageCount: number;
+  totalItems: number;
+  pagination: { pageIndex: number; pageSize: number };
+  setPagination: React.Dispatch<React.SetStateAction<{ pageIndex: number; pageSize: number }>>;
 }
 
 export function PageDataTable({
@@ -48,20 +53,19 @@ export function PageDataTable({
   scores,
   isLoading,
   onDataChange,
-  // pageCount,
-  // totalItems,
-  // pagination,
-  // setPagination,
+  pageCount,
+  totalItems,
+  pagination,
+  setPagination,
 }: PageDataTableProps) {
   const router = useRouter();
+  const { toast } = useToast();
   const [sorting, setSorting] = React.useState<SortingState>([{ id: 'title', desc: false }]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [rowSelection, setRowSelection] = React.useState({})
   const [expanded, setExpanded] = React.useState<ExpandedState>({});
-  const [pagination, setPagination] = React.useState({
-    pageIndex: 0,
-    pageSize: 10,
-  });
+  const [isDeleting, setIsDeleting] = React.useState(false);
+
   
   const LANGUAGE_MAP: { [key: string]: string } = {
     es: 'Español',
@@ -71,57 +75,77 @@ export function PageDataTable({
     pt: 'Portugués',
   };
 
-  const tableData = React.useMemo((): HierarchicalContentItem[] => {
-    if (!data) return [];
-    
-    const itemsById = new Map<number, HierarchicalContentItem>(data.map((p) => [p.id, { ...p, subRows: [] }]));
-    const roots: HierarchicalContentItem[] = [];
-    const processedIds = new Set<number>();
-
-    data.forEach((item) => {
-        if (processedIds.has(item.id)) return;
-
-        let mainItem: HierarchicalContentItem | undefined;
-        const translationIds = new Set(Object.values(item.translations || {}));
-        
-        if (translationIds.size > 1) {
-            const groupItems = Array.from(translationIds)
-                .map(id => itemsById.get(id))
-                .filter((p): p is HierarchicalContentItem => !!p);
-
-            if (groupItems.length > 0) {
-                mainItem = groupItems.find(p => p.lang === 'es') || groupItems[0];
-                
-                if (mainItem) {
-                    mainItem.subRows = groupItems.filter(p => p.id !== mainItem!.id);
-                    groupItems.forEach(p => processedIds.add(p.id));
-                }
-            } else {
-                mainItem = itemsById.get(item.id);
-                if(mainItem) processedIds.add(mainItem.id);
-            }
-        } else {
-            mainItem = itemsById.get(item.id);
-            if(mainItem) processedIds.add(mainItem.id);
-        }
-
-        if (mainItem) {
-            roots.push(mainItem);
-        }
-    });
-
-    return roots.sort((a,b) => a.title.localeCompare(b.title));
-  }, [data]);
-
   const handleEditContent = (item: ContentItem) => {
-    router.push(`/seo-optimizer/edit/${item.id}?type=${item.type}`);
+    router.push(`/pages/edit/${item.id}?type=${item.type}`);
   };
 
-  const columns = React.useMemo(() => getColumns(handleEditContent), []);
+  const handleDeleteContent = async (item: ContentItem) => {
+    setIsDeleting(true);
+    const user = auth.currentUser;
+    if (!user) {
+      toast({ title: 'Error de autenticación', variant: 'destructive' });
+      setIsDeleting(false); return;
+    }
+
+    try {
+        const token = await user.getIdToken();
+        const response = await fetch(`/api/wordpress/pages/${item.id}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!response.ok) throw new Error('Fallo al mover a la papelera.');
+        toast({ title: "Movido a la papelera", description: `"${item.title}" ha sido movido a la papelera.` });
+        onDataChange();
+    } catch(e: any) {
+         toast({ title: "Error al eliminar", description: e.message, variant: "destructive" });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+  
+  const handleBatchDelete = async () => {
+    const selectedRows = table.getSelectedRowModel().rows;
+    if (selectedRows.length === 0) return;
+    
+    setIsDeleting(true);
+    const user = auth.currentUser;
+    if (!user) {
+        toast({ title: "No autenticado", variant: "destructive" });
+        setIsDeleting(false);
+        return;
+    }
+    const token = await user.getIdToken();
+    const postIds = selectedRows.map(row => row.original.id);
+    
+    try {
+         const response = await fetch('/api/wordpress/posts/batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ postIds, action: 'delete' })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Fallo la eliminación en lote.');
+        
+        toast({ title: "Contenido movido a la papelera", description: `${result.results.success.length} elementos eliminados.` });
+        onDataChange();
+        table.resetRowSelection();
+    } catch (e: any) {
+        toast({ title: 'Error en lote', description: e.message, variant: 'destructive' });
+    } finally {
+        setIsDeleting(false);
+    }
+  };
+
+  const handleEditImages = (item: ContentItem) => {
+    router.push(`/pages/edit-images?ids=${item.id}&type=${item.type}`);
+  };
+
+  const columns = React.useMemo(() => getColumns(handleEditContent, handleDeleteContent, handleEditImages), [scores]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const table = useReactTable({
-    data: tableData,
+    data,
     columns,
+    pageCount: pageCount,
     state: {
       sorting,
       expanded,
@@ -140,18 +164,23 @@ export function PageDataTable({
     getFilteredRowModel: getFilteredRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    // manualPagination: true, // Now handled client-side
+    manualPagination: true,
   });
   
   const availableLanguages = React.useMemo(() => {
     const langSet = new Set<string>();
     data.forEach(item => {
         if (item.lang) langSet.add(item.lang);
+        item.subRows?.forEach(sub => {
+            if(sub.lang) langSet.add(sub.lang);
+        });
     });
     return Array.from(langSet).map(code => ({ code, name: LANGUAGE_MAP[code as keyof typeof LANGUAGE_MAP] || code.toUpperCase() }));
   }, [data]);
   
   const titleFilterValue = (table.getColumn('title')?.getFilterValue() as string) ?? '';
+  const selectedRowCount = Object.keys(rowSelection).length;
+
 
   return (
     <div className="w-full space-y-4">
@@ -207,6 +236,37 @@ export function PageDataTable({
                 </SelectContent>
             </Select>
         </div>
+         {selectedRowCount > 0 && (
+             <AlertDialog>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" disabled={isDeleting}>
+                      {isDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ChevronDown className="mr-2 h-4 w-4" />}
+                      Acciones ({selectedRowCount})
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                     <AlertDialogTrigger asChild>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" /> Mover a la papelera
+                        </DropdownMenuItem>
+                    </AlertDialogTrigger>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                      <AlertDialogTitle>¿Confirmar acción?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                         Se moverán {selectedRowCount} elemento(s) a la papelera.
+                      </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBatchDelete} className="bg-destructive hover:bg-destructive/90">Confirmar</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+         )}
       </div>
 
       <div className="rounded-md border">
@@ -262,7 +322,7 @@ export function PageDataTable({
       
        <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
-           Total de páginas (principales) encontradas: {table.getCoreRowModel().rows.length}
+           {selectedRowCount} de {totalItems} fila(s) seleccionadas.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">

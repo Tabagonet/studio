@@ -1,6 +1,5 @@
-
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
+import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import { getApiClientsForUser, getPromptForConnection, getEntityRef as getEntityRefHelper } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";

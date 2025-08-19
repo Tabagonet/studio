@@ -242,7 +242,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             baseProductName: productData.name,
             productName: productData.name,
             productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags, // Pass as an array
             language: productData.language,
             groupedProductIds: productData.groupedProductIds,
         };
@@ -277,7 +277,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             imageDescription: aiContent.imageDescription,
         });
 
-        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado las descripciones, palabras clave y metadatos de imagen." });
+        toast({ title: "¡Contenido generado!", description: "La IA ha rellenado las descripciones, etiquetas y metadatos de imagen." });
 
     } catch (error: any) {
         toast({ title: "Error de IA", description: error.message, variant: "destructive", duration: 10000 });
@@ -298,7 +298,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
         const token = await user.getIdToken();
         const payload = {
             productName: productData.name, productType: productData.productType,
-            tags: productData.tags,
+            tags: productData.tags, // Pass as an array
             language: productData.language, mode: 'image_meta_only',
         };
         const response = await fetch('/api/generate-description', {
