@@ -254,10 +254,7 @@ export function replaceElementorTexts(data: any, widgetUpdates: Map<string, stri
  * @returns A promise that resolves to the enriched image object.
  */
 export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance) {
-  if (!image.mediaId) return image; // Can't enrich without an ID
-
-  // Only fetch if data is missing, to be efficient.
-  if (image.alt !== null && image.width !== null && image.height !== null) {
+  if (!image.mediaId || (image.alt !== null && image.width !== null && image.height !== null)) {
       return image;
   }
 
@@ -265,7 +262,7 @@ export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance)
     const { data } = await wpApi.get(`/media/${image.mediaId}`);
     return {
       ...image,
-      alt: image.alt ?? data.alt_text ?? '', // Prioritize already found alt, fallback to API
+      alt: image.alt ?? data.alt_text ?? null,
       width: image.width ?? data.media_details?.width ?? null,
       height: image.height ?? data.media_details?.height ?? null
     };
@@ -298,10 +295,8 @@ export function findElementorImageContext(elementorData: any[]): {
 
   const imageKeys = [
     'image', 'background_image', 'background_a_image', 'background_b_image',
-    'gallery', 'featured_image', 'image_box_image', 'icon_box_image',
-    'image_carousel', 'image_slider', 'media', 'logo_image', 'parallax_image',
-    'attachment', 'video_image', 'image_overlay', 'before_image', 'after_image',
-    'thumbnail'
+    'featured_image', 'image_box_image', 'icon_box_image', 'media',
+    'logo_image', 'image_overlay', 'background_overlay_image'
   ];
 
   function traverse(items: any[]) {
@@ -316,7 +311,7 @@ export function findElementorImageContext(elementorData: any[]): {
         if (imgObj?.url) {
           const width = widgetSettings.image_size?.width || widgetSettings.image_custom_dimension?.width || imgObj.width || null;
           const height = widgetSettings.image_size?.height || widgetSettings.image_custom_dimension?.height || imgObj.height || null;
-          const alt = imgObj.alt || widgetSettings.alt || null;
+          const alt = imgObj.alt || widgetSettings.alt || null; // Extraer alt del objeto de imagen o widget
           images.push({
             url: imgObj.url,
             id: imgObj.id || null,
@@ -329,6 +324,7 @@ export function findElementorImageContext(elementorData: any[]): {
         }
       };
 
+      // Handle dynamic images like featured image fallbacks
       if (settings.__dynamic__?.image && typeof settings.__dynamic__.image === 'string') {
         try {
           const tagString = settings.__dynamic__.image;
@@ -352,9 +348,11 @@ export function findElementorImageContext(elementorData: any[]): {
         }
       }
 
+      // Specific logic for array-based widgets like sliders or galleries
       const arrayWidgets: { key: string, context: string }[] = [
         { key: 'slides', context: 'Slide' },
         { key: 'gallery', context: 'Galería' },
+        { key: 'image_carousel', context: 'Carrusel' },
       ];
 
       for (const widget of arrayWidgets) {

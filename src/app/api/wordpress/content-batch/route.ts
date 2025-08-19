@@ -10,122 +10,120 @@ import * as cheerio from 'cheerio';
 export const dynamic = 'force-dynamic';
 
 async function fetchPostData(id: number, type: string, wpApi: any, wooApi: any) {
-    let post;
-    const isProduct = type.toLowerCase() === 'producto';
-    const endpoint = isProduct ? `products/${id}` : (type.toLowerCase() === 'page' ? `pages/${id}` : `posts/${id}`);
-    const apiToUse = isProduct ? wooApi : wpApi;
+  let post;
+  const isProduct = type.toLowerCase() === 'producto';
+  const endpoint = isProduct ? `products/${id}` : (type.toLowerCase() === 'page' ? `pages/${id}` : `posts/${id}`);
+  const apiToUse = isProduct ? wooApi : wpApi;
 
-    if (!apiToUse) {
-        throw new Error(`API client for type "${type}" is not configured.`);
+  if (!apiToUse) {
+    throw new Error(`API client for type "${type}" is not configured.`);
+  }
+
+  const { data } = await apiToUse.get(endpoint, { params: { context: 'edit' } });
+  post = data;
+
+  const metaToCheck = post.meta_data ? post.meta_data.reduce((obj: any, item: any) => ({ ...obj, [item.key]: item.value }), {}) : post.meta;
+
+  // 1. Get images from Elementor JSON data if it exists
+  let elementorImages: any[] = [];
+  if (metaToCheck?._elementor_data) {
+    try {
+      const elementorData = JSON.parse(metaToCheck._elementor_data);
+      elementorImages = findElementorImageContext(elementorData);
+    } catch (e) {
+      console.warn(`Could not parse Elementor data for post ${id}`);
     }
+  }
 
-    const { data } = await apiToUse.get(endpoint, { params: { context: 'edit' } });
-    post = data;
+  // 2. Get images by scraping the live URL to capture everything rendered in HTML
+  let scrapedImages: any[] = [];
+  const pageLink = post.permalink || post.link;
+  if (pageLink && wpApi) {
+    try {
+      const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      const html = scrapeResponse.data;
+      const $ = cheerio.load(html);
+      const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
+      $contentArea.find('header, footer, nav, script, style, noscript').remove();
 
-    const metaToCheck = post.meta_data ? post.meta_data.reduce((obj: any, item: any) => ({...obj, [item.key]: item.value}), {}) : post.meta;
-    
-    // 1. Get images from Elementor JSON data if it exists
-    let elementorImages: any[] = [];
-    if (metaToCheck?._elementor_data) {
-        try {
-            const elementorData = JSON.parse(metaToCheck._elementor_data);
-            elementorImages = findElementorImageContext(elementorData);
-        } catch (e) {
-            console.warn(`Could not parse Elementor data for post ${id}`);
+      const imageMap = new Map<string, any>();
+
+      $contentArea.find('img').each((i, el) => {
+        const src = $(el).attr('data-src') || $(el).attr('src');
+        if (!src || src.includes('data:image')) return;
+
+        const absoluteSrc = new URL(src, pageLink).href;
+        if (!imageMap.has(absoluteSrc)) {
+          const classList = $(el).attr('class') || '';
+          const match = classList.match(/wp-image-(\d+)/);
+          const mediaId = match ? parseInt(match[1], 10) : null;
+
+          imageMap.set(absoluteSrc, {
+            id: absoluteSrc,
+            src: absoluteSrc,
+            alt: $(el).attr('alt') || null,
+            mediaId: mediaId,
+            width: $(el).attr('width') || null,
+            height: $(el).attr('height') || null
+          });
         }
+      });
+      scrapedImages = Array.from(imageMap.values());
+    } catch (scrapeError) {
+      console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
     }
-    
-    // 2. Get images by scraping the live URL to capture everything rendered in HTML
-    let scrapedImages: any[] = [];
-    const pageLink = post.permalink || post.link;
-    if (pageLink && wpApi) {
-        try {
-            const scrapeResponse = await axios.get(pageLink, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-            const html = scrapeResponse.data;
-            const $ = cheerio.load(html);
-            const $contentArea = $('main').length ? $('main') : $('article').length ? $('article') : $('body');
-            $contentArea.find('header, footer, nav, script, style, noscript').remove();
+  }
 
-            const imageMap = new Map<string, any>();
+  // 3. Merge and de-duplicate results with improved logic
+  const finalImageMap = new Map<string, any>();
 
-            $contentArea.find('img').each((i, el) => {
-                const src = $(el).attr('data-src') || $(el).attr('src');
-                if (!src || src.includes('data:image')) return;
-
-                const absoluteSrc = new URL(src, pageLink).href;
-                if (!imageMap.has(absoluteSrc)) {
-                    const classList = $(el).attr('class') || '';
-                    const match = classList.match(/wp-image-(\d+)/);
-                    const mediaId = match ? parseInt(match[1], 10) : null;
-                    
-                    imageMap.set(absoluteSrc, {
-                        id: absoluteSrc,
-                        src: absoluteSrc,
-                        alt: $(el).attr('alt') || null,
-                        mediaId: mediaId,
-                        width: $(el).attr('width') || null,
-                        height: $(el).attr('height') || null
-                    });
-                }
-            });
-            scrapedImages = Array.from(imageMap.values());
-        } catch (scrapeError) {
-            console.warn(`Could not scrape ${pageLink} for live image data:`, scrapeError);
-        }
-    }
-
-    // 3. Merge and de-duplicate results with improved logic
-    const finalImageMap = new Map<string, any>();
-
-    // Prioritize Elementor images for metadata accuracy (context, widgetType)
-    elementorImages.forEach(img => {
-        finalImageMap.set(img.url, {
-            id: img.url,
-            src: img.url,
-            alt: img.alt || null,
-            mediaId: img.id || null,
-            width: img.width || null,
-            height: img.height || null,
-            context: img.context,
-            widgetType: img.widgetType
-        });
+  // Prioritize Elementor images for metadata accuracy (context, widgetType, mediaId)
+  elementorImages.forEach(img => {
+    finalImageMap.set(img.url, {
+      id: img.url,
+      src: img.url,
+      alt: img.alt || null,
+      mediaId: img.id || null,
+      width: img.width || null,
+      height: img.height || null,
+      context: img.context,
+      widgetType: img.widgetType
     });
+  });
 
-    // Enrich with scraped data
-    scrapedImages.forEach(img => {
-        const existingImg = finalImageMap.get(img.src);
-        if (existingImg) {
-            // Fill in missing details from scraped data
-            existingImg.alt = existingImg.alt ?? img.alt;
-            existingImg.mediaId = existingImg.mediaId ?? img.mediaId;
-            existingImg.width = existingImg.width ?? img.width;
-            existingImg.height = existingImg.height ?? img.height;
-        } else {
-            // If the image was only found by scraping, add it.
-            finalImageMap.set(img.src, {
-                id: img.src,
-                src: img.src,
-                alt: img.alt || null,
-                mediaId: img.mediaId || null,
-                width: img.width || null,
-                height: img.height || null,
-                context: 'Contenido HTML',
-                widgetType: 'image'
-            });
-        }
-    });
+  // Enrich with scraped data only if metadata is missing
+  scrapedImages.forEach(img => {
+    if (finalImageMap.has(img.src)) {
+      const existingImg = finalImageMap.get(img.src);
+      // Only update if the existing data is nullish
+      existingImg.alt = existingImg.alt ?? img.alt;
+      existingImg.mediaId = existingImg.mediaId ?? img.mediaId;
+      existingImg.width = existingImg.width ?? img.width;
+      existingImg.height = existingImg.height ?? img.height;
+    } else {
+      finalImageMap.set(img.src, {
+        id: img.src,
+        src: img.src,
+        alt: img.alt || null,
+        mediaId: img.mediaId || null,
+        width: img.width || null,
+        height: img.height || null,
+        context: 'Contenido HTML',
+        widgetType: 'image'
+      });
+    }
+  });
+  
+  // 4. Final enrichment pass using WordPress API for definitive data if mediaId exists
+  const enrichedImages = await Promise.all(
+    Array.from(finalImageMap.values()).map(img => enrichImageWithMediaData(img, wpApi))
+  );
 
-    // 4. Final enrichment pass using WordPress API for definitive data
-    const enrichedImages = await Promise.all(
-      Array.from(finalImageMap.values()).map(img => enrichImageWithMediaData(img, wpApi))
-    );
-
-
-    return {
-        id: post.id,
-        title: post.name || post.title.rendered,
-        images: enrichedImages,
-    };
+  return {
+    id: post.id,
+    title: post.name || post.title.rendered,
+    images: enrichedImages,
+  };
 }
 
 
