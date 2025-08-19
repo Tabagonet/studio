@@ -160,7 +160,7 @@ export interface ProductData {
   category?: WooCommerceCategory | null;
   categoryPath?: string;
   photos: ProductPhoto[];
-  variations?: ProductVariation[];
+  variations: ProductVariation[];
   attributes: ProductAttribute[];
   // Metadata for any new images being uploaded
   imageTitle?: string;
@@ -176,7 +176,7 @@ export interface ProductData {
     width: string;
     height: string;
   };
-  shipping_class?: string;
+  shipping_class: string;
   language: 'Spanish' | 'English' | 'French' | 'German' | 'Portuguese';
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];
@@ -271,7 +271,7 @@ export interface ContentItem {
   id: number;
   title: string;
   slug: string | null;
-  type: 'Post' | 'Page' | 'Producto' | 'Categoría de Entradas';
+  type: 'Post' | 'Page' | 'Producto' | 'Categoría de Entradas' | 'Categoría de Productos';
   link: string | null;
   status: 'publish' | 'draft' | 'pending' | 'private' | 'future' | 'trash';
   parent: number;
@@ -505,3 +505,5 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
+
+    
