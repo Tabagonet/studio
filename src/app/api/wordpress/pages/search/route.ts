@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
 import type { ContentItem } from '@/lib/types';
-import type { AxiosInstance } from 'axios';
 
 export const dynamic = 'force-dynamic';
 
@@ -74,16 +73,12 @@ export async function GET(req: NextRequest) {
             }
         });
         
+        // If the response is empty, we've fetched all pages
         if (response.data.length === 0) {
-            break; // No more pages to fetch
+            break; 
         }
 
         allPages.push(...response.data);
-        
-        const totalPagesHeader = response.headers['x-wp-totalpages'];
-        if (!totalPagesHeader || currentPage >= parseInt(totalPagesHeader, 10)) {
-            break; // Reached the last page
-        }
         currentPage++;
     }
 
