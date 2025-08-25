@@ -13,24 +13,28 @@ if (!defined('ABSPATH')) exit;
 class AutoPress_AI_Helper {
     public function __construct() {
         error_log('[AUTOPRESS AI DEBUG] AutoPress_AI_Helper constructor called.');
-        add_action('rest_api_init', [$this, 'register_routes'], 20);
+        // Register endpoints on rest_api_init with a higher priority to wait for other plugins
+        add_action('rest_api_init', [$this, 'register_routes'], 100);
     }
 
     public function register_routes() {
         error_log('[AUTOPRESS AI DEBUG] rest_api_init hook fired. Registering endpoints...');
 
+        // Status check endpoint
         register_rest_route('custom/v1', '/status', [
             'methods' => 'GET',
             'callback' => [$this, 'status_check'],
             'permission_callback' => '__return_true'
         ]);
 
+        // Polylang languages endpoint
         register_rest_route('custom/v1', '/get-languages', [
             'methods' => 'GET',
             'callback' => [$this, 'get_polylang_languages'],
             'permission_callback' => [$this, 'permission_check']
         ]);
 
+        // Other endpoints
         register_rest_route('custom/v1', '/link-translations', [
             'methods' => 'POST',
             'callback' => [$this, 'custom_api_link_translations'],
@@ -74,10 +78,14 @@ class AutoPress_AI_Helper {
         error_log('[AUTOPRESS AI DEBUG] All endpoints registered.');
     }
 
-    public function permission_check() {
-        return current_user_can('edit_posts');
+    public function permission_check(WP_REST_Request $request) {
+        $nonce = $request->get_header('X-WP-Nonce');
+        $nonce_valid = wp_verify_nonce($nonce, 'wp_rest');
+        $user_can = current_user_can('edit_posts');
+        error_log('[AUTOPRESS AI DEBUG] Permission check - Nonce valid: ' . ($nonce_valid ? 'true' : 'false') . ', User can edit_posts: ' . ($user_can ? 'true' : 'false'));
+        return $nonce_valid && $user_can;
     }
-
+    
     private function get_plugin_version() {
         if (!function_exists('get_plugin_data')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -101,7 +109,7 @@ class AutoPress_AI_Helper {
             'polylang_active' => $is_polylang_active && $pll_functions_available,
         ], 200);
     }
-
+    
     public function get_polylang_languages() {
         error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit.');
 
@@ -110,20 +118,21 @@ class AutoPress_AI_Helper {
         error_log('[AUTOPRESS AI DEBUG] Is Polylang active: ' . ($is_polylang_active ? 'true' : 'false'));
 
         if ($is_polylang_active && (!function_exists('pll_languages_list') || !function_exists('pll_get_language'))) {
-            error_log('[AUTOPRESS AI DEBUG] Polylang functions not available, attempting to load Polylang...');
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions not available, attempting to load...');
             if (file_exists(WP_PLUGIN_DIR . '/polylang/polylang.php')) {
                 include_once WP_PLUGIN_DIR . '/polylang/polylang.php';
             } elseif (file_exists(WP_PLUGIN_DIR . '/polylang-pro/polylang.php')) {
                 include_once WP_PLUGIN_DIR . '/polylang-pro/polylang.php';
             }
             if (class_exists('PLL') && function_exists('PLL')) {
+                PLL()->init();
                 do_action('pll_init');
-                error_log('[AUTOPRESS AI DEBUG] Polylang initialized via pll_init.');
+                error_log('[AUTOPRESS AI DEBUG] Polylang initialized via PLL()->init() and pll_init.');
             }
         }
 
         if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
-            error_log('[AUTOPRESS AI DEBUG] Polylang functions still not available after init attempt.');
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions still not available.');
             return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles.', ['status' => 501]);
         }
 
@@ -149,216 +158,23 @@ class AutoPress_AI_Helper {
             }
         }
 
-        error_log('[AUTOPRESS AI DEBUG] Final formatted languages being sent: ' . print_r($formatted_languages, true));
+        error_log('[AUTOPRESS AI DEBUG] Formatted languages: ' . print_r($formatted_languages, true));
         return new WP_REST_Response($formatted_languages, 200);
     }
     
-    public function custom_api_link_translations(WP_REST_Request $request) {
-        if (!function_exists('pll_save_post_translations')) {
-            return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]);
-        }
-        $translations = $request->get_param('translations');
-        if (empty($translations) || !is_array($translations)) {
-            return new WP_Error('invalid_payload', 'Se requiere un array asociativo de traducciones.', ['status' => 400]);
-        }
-        $sanitized = [];
-        foreach ($translations as $lang => $post_id) {
-            $sanitized[sanitize_key($lang)] = absint($post_id);
-        }
-        pll_save_post_translations($sanitized);
-        return new WP_REST_Response(['success' => true, 'message' => 'Traducciones enlazadas.'], 200);
-    }
-
-    public function custom_api_trash_single_post(WP_REST_Request $request) {
-        $post_id = $request->get_param('id');
-        $id = absint($post_id);
-        if (!$id || !current_user_can('delete_post', $id)) {
-            return new WP_Error('permission_denied', 'No tienes permiso para eliminar este post.', ['status' => 403]);
-        }
-        if (wp_trash_post($id)) {
-            return new WP_REST_Response(['success' => true, 'message' => "Post {$id} movido a la papelera."], 200);
-        }
-        return new WP_Error('trash_failed', "No se pudo mover el post {$id} a la papelera.", ['status' => 500]);
-    }
-    
-    public function custom_api_batch_trash_posts(WP_REST_Request $request) {
-        $post_ids = $request->get_param('post_ids');
-        if (empty($post_ids) || !is_array($post_ids)) {
-            return new WP_Error('invalid_payload', 'Se requiere un array de IDs de entradas.', ['status' => 400]);
-        }
-        $results = ['success' => [], 'failed' => []];
-        foreach ($post_ids as $post_id) {
-            $id = absint($post_id);
-            if ($id && current_user_can('delete_post', $id) && function_exists('wp_trash_post')) {
-                if (wp_trash_post($id)) {
-                    $results['success'][] = $id;
-                } else {
-                    $results['failed'][] = ['id' => $id, 'reason' => 'Fallo en wp_trash_post'];
-                }
-            } else {
-                $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.'];
-            }
-        }
-        return new WP_REST_Response(['success' => true, 'data' => $results], 200);
-    }
-    
-    public function custom_api_regenerate_elementor_css(WP_REST_Request $request) {
-        $post_id = $request->get_param('id');
-        if (class_exists('Elementor\Plugin')) {
-            \Elementor\Plugin::$instance->files_manager->clear_cache();
-        }
-        return new WP_REST_Response(['success' => true, 'message' => "Caché de CSS de Elementor limpiada."], 200);
-    }
-    
-    public function custom_api_get_all_menus() {
-        $menus = wp_get_nav_menus();
-        $formatted_menus = [];
-        if ($menus && !is_wp_error($menus)) {
-            foreach ($menus as $menu) {
-                $formatted_menus[] = ['id' => $menu->term_id, 'name' => $menu->name, 'slug' => $menu->slug];
-            }
-        }
-        return new WP_REST_Response($formatted_menus, 200);
-    }
-    
-    public function custom_api_clone_menu(WP_REST_Request $request) {
-        $menu_id = $request->get_param('menu_id');
-        $target_lang_slug = $request->get_param('target_lang');
-        if (!function_exists('pll_get_post')) {
-            return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]);
-        }
-        $original_menu = wp_get_nav_menu_object($menu_id);
-        if (!$original_menu) {
-            return new WP_Error('menu_not_found', 'Menú original no encontrado.', ['status' => 404]);
-        }
-        $new_menu_name = $original_menu->name . " ($target_lang_slug)";
-        if (wp_get_nav_menu_object($new_menu_name)) {
-            return new WP_Error('menu_exists', 'Ya existe un menú con este nombre para el idioma de destino.', ['status' => 409]);
-        }
-        $new_menu_id = wp_create_nav_menu($new_menu_name);
-        if (function_exists('pll_set_term_language')) {
-            pll_set_term_language($new_menu_id, $target_lang_slug);
-        }
-        $original_items = wp_get_nav_menu_items($menu_id);
-        if (empty($original_items)) {
-            return new WP_REST_Response(['success' => true, 'message' => 'Menú clonado (vacío).'], 200);
-        }
-        $id_map = [];
-        foreach ($original_items as $item) {
-            $new_item_data = ['menu-item-type' => $item->type, 'menu-item-status' => 'publish', 'menu-item-parent-id' => isset($id_map[$item->menu_item_parent]) ? $id_map[$item->menu_item_parent] : 0, 'menu-item-title' => $item->title];
-            if ($item->type === 'post_type' || $item->type === 'post_type_archive') {
-                $translated_id = pll_get_post($item->object_id, $target_lang_slug);
-                if ($translated_id) {
-                    $new_item_data['menu-item-object-id'] = $translated_id;
-                    $new_item_data['menu-item-object'] = $item->object;
-                } else { continue; }
-            } elseif ($item->type === 'taxonomy') {
-                $translated_id = pll_get_term($item->object_id, $target_lang_slug);
-                if ($translated_id) {
-                    $new_item_data['menu-item-object-id'] = $translated_id;
-                    $new_item_data['menu-item-object'] = $item->object;
-                } else { continue; }
-            } else { $new_item_data['menu-item-url'] = $item->url; }
-            $new_item_id = wp_update_nav_menu_item($new_menu_id, 0, $new_item_data);
-            if (is_numeric($new_item_id)) {
-                $id_map[$item->ID] = $new_item_id;
-            }
-        }
-        return new WP_REST_Response(['success' => true, 'message' => "Menú clonado y traducido con éxito a '{$target_lang_slug}'."], 200);
-    }
-    
-    private function sideload_image($file_url, $post_id) {
-        if (!function_exists('media_handle_sideload')) {
-            require_once ABSPATH . 'wp-admin/includes/file.php';
-            require_once ABSPATH . 'wp-admin/includes/media.php';
-            require_once ABSPATH . 'wp-admin/includes/image.php';
-        }
-        $tmp = download_url($file_url, 15);
-        if (is_wp_error($tmp)) {
-            error_log('[AUTOPRESS AI DEBUG] Sideload Error (download_url): ' . $tmp->get_error_message());
-            return $tmp;
-        }
-        $file_array = ['name' => basename(wp_parse_url($file_url, PHP_URL_PATH)), 'tmp_name' => $tmp];
-        $id = media_handle_sideload($file_array, $post_id);
-        if (is_wp_error($id)) {
-            @unlink($file_array['tmp_name']);
-            error_log('[AUTOPRESS AI DEBUG] Sideload Error (media_handle_sideload): ' . $id->get_error_message());
-        }
-        return $id;
-    }
-
-    public function custom_api_update_product_images(WP_REST_Request $request) { 
-        $product_id = intval($request->get_param('product_id'));
-        $mode = sanitize_text_field($request->get_param('mode'));
-        $image_urls = $request->get_param('images');
-        if (!$product_id) {
-            return new WP_Error('no_id', 'Falta el ID del producto', ['status' => 400]);
-        }
-        $product = wc_get_product($product_id);
-        if (!$product) {
-            return new WP_Error('not_found', 'Producto no encontrado', ['status' => 404]);
-        }
-        $current_ids = $product->get_gallery_image_ids();
-        if ($product->get_image_id()) {
-            array_unshift($current_ids, $product->get_image_id());
-        }
-        $new_ids = [];
-        if (is_array($image_urls)) {
-            foreach ($image_urls as $img) {
-                if (is_numeric($img)) {
-                    $new_ids[] = intval($img);
-                } elseif (filter_var($img, FILTER_VALIDATE_URL)) {
-                    $id = $this->sideload_image($img, $product_id);
-                    if (is_numeric($id)) $new_ids[] = $id;
-                }
-            }
-        }
-        $final_ids = [];
-        if ($mode === 'replace') {
-            $final_ids = $new_ids;
-        } elseif ($mode === 'add') {
-            $final_ids = array_unique(array_merge($current_ids, $new_ids));
-        } elseif ($mode === 'remove') {
-            $final_ids = array_diff($current_ids, $new_ids);
-        } elseif ($mode === 'clear') {
-            $final_ids = [];
-        } else {
-            $final_ids = $new_ids;
-        }
-        $main_id = array_shift($final_ids);
-        $product->set_image_id($main_id ?: 0);
-        $product->set_gallery_image_ids($final_ids);
-        $product->save();
-        return new WP_REST_Response(['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()], 200); 
-    }
-    
-    public function custom_api_batch_update_status(WP_REST_Request $request) { 
-        $post_ids = $request->get_param('post_ids');
-        $status = $request->get_param('status');
-        if (empty($post_ids) || !is_array($post_ids) || !in_array($status, ['publish', 'draft', 'pending', 'private'])) {
-            return new WP_Error('invalid_payload', 'Se requiere un array de IDs y un estado válido.', ['status' => 400]);
-        }
-        $results = ['success' => [], 'failed' => []];
-        foreach ($post_ids as $post_id) {
-            $id = absint($post_id);
-            if ($id && current_user_can('edit_post', $id)) {
-                $post_data = ['ID' => $id, 'post_status' => $status];
-                $result = wp_update_post($post_data, true);
-                if (is_wp_error($result)) {
-                    $results['failed'][] = ['id' => $id, 'reason' => $result->get_error_message()];
-                } else {
-                    $results['success'][] = $id;
-                }
-            } else {
-                $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.'];
-            }
-        }
-        return new WP_REST_Response(['success' => true, 'data' => $results], 200);
-    }
+    // Other methods...
+    public function custom_api_link_translations(WP_REST_Request $request) { if (!function_exists('pll_save_post_translations')) { return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]); } $translations = $request->get_param('translations'); if (empty($translations) || !is_array($translations)) { return new WP_Error('invalid_payload', 'Se requiere un array asociativo de traducciones.', ['status' => 400]); } $sanitized = []; foreach ($translations as $lang => $post_id) { $sanitized[sanitize_key($lang)] = absint($post_id); } pll_save_post_translations($sanitized); return new WP_REST_Response(['success' => true, 'message' => 'Traducciones enlazadas.'], 200); }
+    public function custom_api_trash_single_post(WP_REST_Request $request) { $post_id = $request->get_param('id'); $id = absint($post_id); if (!$id || !current_user_can('delete_post', $id)) { return new WP_Error('permission_denied', 'No tienes permiso para eliminar este post.', ['status' => 403]); } if (wp_trash_post($id)) { return new WP_REST_Response(['success' => true, 'message' => "Post {$id} movido a la papelera."], 200); } return new WP_Error('trash_failed', "No se pudo mover el post {$id} a la papelera.", ['status' => 500]); }
+    public function custom_api_batch_trash_posts(WP_REST_Request $request) { $post_ids = $request->get_param('post_ids'); if (empty($post_ids) || !is_array($post_ids)) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs de entradas.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('delete_post', $id) && function_exists('wp_trash_post')) { if (wp_trash_post($id)) { $results['success'][] = $id; } else { $results['failed'][] = ['id' => $id, 'reason' => 'Fallo en wp_trash_post']; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
+    public function custom_api_regenerate_elementor_css(WP_REST_Request $request) { if (class_exists('Elementor\Plugin')) { \Elementor\Plugin::$instance->files_manager->clear_cache(); } return new WP_REST_Response(['success' => true, 'message' => "Caché de CSS de Elementor limpiada."], 200); }
+    public function custom_api_get_all_menus() { $menus = wp_get_nav_menus(); $formatted_menus = []; if ($menus && !is_wp_error($menus)) { foreach ($menus as $menu) { $formatted_menus[] = ['id' => $menu->term_id, 'name' => $menu->name, 'slug' => $menu->slug]; } } return new WP_REST_Response($formatted_menus, 200); }
+    public function custom_api_clone_menu(WP_REST_Request $request) { $menu_id = $request->get_param('menu_id'); $target_lang_slug = $request->get_param('target_lang'); if (!function_exists('pll_get_post')) { return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]); } $original_menu = wp_get_nav_menu_object($menu_id); if (!$original_menu) { return new WP_Error('menu_not_found', 'Menú original no encontrado.', ['status' => 404]); } $new_menu_name = $original_menu->name . " ($target_lang_slug)"; if (wp_get_nav_menu_object($new_menu_name)) { return new WP_Error('menu_exists', 'Ya existe un menú con este nombre para el idioma de destino.', ['status' => 409]); } $new_menu_id = wp_create_nav_menu($new_menu_name); if (function_exists('pll_set_term_language')) { pll_set_term_language($new_menu_id, $target_lang_slug); } $original_items = wp_get_nav_menu_items($menu_id); if (empty($original_items)) { return new WP_REST_Response(['success' => true, 'message' => 'Menú clonado (vacío).'], 200); } $id_map = []; foreach ($original_items as $item) { $new_item_data = ['menu-item-type' => $item->type, 'menu-item-status' => 'publish', 'menu-item-parent-id' => isset($id_map[$item->menu_item_parent]) ? $id_map[$item->menu_item_parent] : 0, 'menu-item-title' => $item->title]; if ($item->type === 'post_type' || $item->type === 'post_type_archive') { $translated_id = pll_get_post($item->object_id, $target_lang_slug); if ($translated_id) { $new_item_data['menu-item-object-id'] = $translated_id; $new_item_data['menu-item-object'] = $item->object; } else { continue; } } elseif ($item->type === 'taxonomy') { $translated_id = pll_get_term($item->object_id, $target_lang_slug); if ($translated_id) { $new_item_data['menu-item-object-id'] = $translated_id; $new_item_data['menu-item-object'] = $item->object; } else { continue; } } else { $new_item_data['menu-item-url'] = $item->url; } $new_item_id = wp_update_nav_menu_item($new_menu_id, 0, $new_item_data); if (is_numeric($new_item_id)) { $id_map[$item->ID] = $new_item_id; } } return new WP_REST_Response(['success' => true, 'message' => "Menú clonado y traducido con éxito a '{$target_lang_slug}'."], 200); }
+    public function custom_api_update_product_images(WP_REST_Request $request) { $product_id = intval($request->get_param('product_id')); $mode = sanitize_text_field($request->get_param('mode')); $image_urls = $request->get_param('images'); if (!$product_id) { return new WP_Error('no_id', 'Falta el ID del producto', ['status' => 400]); } $product = wc_get_product($product_id); if (!$product) { return new WP_Error('not_found', 'Producto no encontrado', ['status' => 404]); } $current_ids = $product->get_gallery_image_ids(); if ($product->get_image_id()) { array_unshift($current_ids, $product->get_image_id()); } $new_ids = []; if (is_array($image_urls)) { foreach ($image_urls as $img) { if (is_numeric($img)) { $new_ids[] = intval($img); } elseif (filter_var($img, FILTER_VALIDATE_URL)) { $id = $this->sideload_image($img, $product_id); if (is_numeric($id)) $new_ids[] = $id; } } } $final_ids = []; if ($mode === 'replace') { $final_ids = $new_ids; } elseif ($mode === 'add') { $final_ids = array_unique(array_merge($current_ids, $new_ids)); } elseif ($mode === 'remove') { $final_ids = array_diff($current_ids, $new_ids); } elseif ($mode === 'clear') { $final_ids = []; } else { $final_ids = $new_ids; } $main_id = array_shift($final_ids); $product->set_image_id($main_id ?: 0); $product->set_gallery_image_ids($final_ids); $product->save(); return new WP_REST_Response(['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()], 200); }
+    private function sideload_image($file_url, $post_id) { if (!function_exists('media_handle_sideload')) { require_once ABSPATH . 'wp-admin/includes/file.php'; require_once ABSPATH . 'wp-admin/includes/media.php'; require_once ABSPATH . 'wp-admin/includes/image.php'; } $tmp = download_url($file_url, 15); if (is_wp_error($tmp)) { error_log('[AUTOPRESS AI DEBUG] Sideload Error (download_url): ' . $tmp->get_error_message()); return $tmp; } $file_array = ['name' => basename(wp_parse_url($file_url, PHP_URL_PATH)), 'tmp_name' => $tmp]; $id = media_handle_sideload($file_array, $post_id); if (is_wp_error($id)) { @unlink($file_array['tmp_name']); error_log('[AUTOPRESS AI DEBUG] Sideload Error (media_handle_sideload): ' . $id->get_error_message()); } return $id; }
+    public function custom_api_batch_update_status(WP_REST_Request $request) { $post_ids = $request->get_param('post_ids'); $status = $request->get_param('status'); if (empty($post_ids) || !is_array($post_ids) || !in_array($status, ['publish', 'draft', 'pending', 'private'])) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs y un estado válido.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('edit_post', $id)) { $post_data = ['ID' => $id, 'post_status' => $status]; $result = wp_update_post($post_data, true); if (is_wp_error($result)) { $results['failed'][] = ['id' => $id, 'reason' => $result->get_error_message()]; } else { $results['success'][] = $id; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
 }
 
-// Iniciar el plugin en un hook tardío para asegurar que Polylang esté cargado.
-add_action('after_setup_theme', function() {
-    error_log('[AUTOPRESS AI DEBUG] after_setup_theme hook fired, initializing AutoPress_AI_Helper.');
+add_action('init', function() {
+    error_log('[AUTOPRESS AI DEBUG] init hook fired, initializing AutoPress_AI_Helper.');
     new AutoPress_AI_Helper();
-}, 20);
+}, 100);
