@@ -24,37 +24,29 @@ export async function GET(req: NextRequest) {
         console.log(`[API get-languages] User authenticated: ${uid}`);
 
         const { wpApi, nonce } = await getApiClientsForUser(uid);
-        if (!wpApi || !wpApi.defaults.baseURL) {
-            console.error('[API get-languages] WordPress API not configured or invalid baseURL.');
-            return NextResponse.json({ error: 'WordPress API is not configured or the URL is invalid.' }, { status: 500 });
+        
+        if (!wpApi) {
+             throw new Error('WordPress API is not configured for the active connection.');
         }
 
-        const siteUrl = wpApi.defaults.baseURL.replace('/wp-json/wp/v2', '');
-        const statusEndpointUrl = `${siteUrl}/wp-json/custom/v1/status`;
-        const languagesEndpointUrl = `${siteUrl}/wp-json/custom/v1/get-languages`;
-
-        let statusResponse;
-        try {
-            statusResponse = await wpApi.get(statusEndpointUrl);
-            console.log('[API get-languages] Status response:', JSON.stringify(statusResponse.data));
-        } catch (error: any) {
-            console.error('[API get-languages] Error fetching /status:', error.message, error.response?.data);
-            return NextResponse.json({ error: `Failed to fetch status endpoint: ${error.message}` }, { status: 502 });
-        }
+        // First, check status without authentication to see if Polylang is reported as active.
+        const statusResponse = await wpApi.get('/custom/v1/status');
+        console.log('[API get-languages] Status response:', JSON.stringify(statusResponse.data));
 
         if (!statusResponse.data?.polylang_active) {
             console.warn('[API get-languages] Polylang is not active according to /status endpoint.');
-            return NextResponse.json({ error: 'Polylang no está activo en el sitio de WordPress.' }, { status: 501 });
-        }
-        
-        if (!nonce) {
-            console.error('[API get-languages] Nonce is missing. Cannot call protected endpoint.');
-            return NextResponse.json({ error: 'Failed to retrieve security nonce. Check WordPress credentials and permissions.' }, { status: 403 });
+            return NextResponse.json({ error: 'Polylang no está activo en el sitio de destino.' }, { status: 501 });
         }
 
-        const response = await wpApi.get(languagesEndpointUrl, {
-            headers: { 'X-WP-Nonce': nonce },
-        });
+        const headers: Record<string, string> = {};
+        if (nonce) {
+            headers['X-WP-Nonce'] = nonce;
+        } else {
+            console.error('[API get-languages] Nonce is missing. Cannot call protected endpoint.');
+            return NextResponse.json({ error: 'Falta el nonce de autenticación. Revisa las credenciales de WordPress.' }, { status: 403 });
+        }
+
+        const response = await wpApi.get('/custom/v1/get-languages', { headers });
 
         console.log(`[API get-languages] Received status ${response.status} from WordPress.`);
 

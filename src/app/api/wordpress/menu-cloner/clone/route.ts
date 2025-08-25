@@ -1,4 +1,3 @@
-
 // src/app/api/wordpress/menu-cloner/clone/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth, adminDb } from '@/lib/firebase-admin';
@@ -33,22 +32,24 @@ export async function POST(req: NextRequest) {
         }
         
         const { menuId, targetLang } = validation.data;
-        const { wpApi } = await getApiClientsForUser(uid);
+        const { wpApi, nonce } = await getApiClientsForUser(uid);
         if (!wpApi) {
             throw new Error('WordPress API is not configured.');
         }
 
-        const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-        if (!siteUrl) {
-            throw new Error("Could not determine base site URL.");
+        const headers: Record<string, string> = {};
+        if (nonce) {
+            headers['X-WP-Nonce'] = nonce;
+        } else {
+             throw new Error('Falta el nonce de autenticación.');
         }
 
-        const cloneEndpoint = `${siteUrl}/wp-json/custom/v1/clone-menu`;
+        const cloneEndpoint = `/custom/v1/clone-menu`;
         
         const response = await wpApi.post(cloneEndpoint, {
             menu_id: menuId,
             target_lang: targetLang,
-        });
+        }, { headers });
 
         if (response.data?.success) {
              return NextResponse.json({ success: true, message: response.data.message });

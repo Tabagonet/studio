@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones y otras funciones personalizadas para AutoPress AI.
-Version: 1.68
+Version: 1.69
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
@@ -11,14 +11,16 @@ Requires PHP: 7.4
 if (!defined('ABSPATH')) exit;
 
 class AutoPress_AI_Helper {
+
     public function __construct() {
-        error_log('[AUTOPRESS AI DEBUG] AutoPress_AI_Helper constructor initialized.');
+        add_action('init', [$this, 'initialize_plugin'], 100);
+    }
+
+    public function initialize_plugin() {
         add_action('rest_api_init', [$this, 'register_routes'], 100);
     }
 
     public function register_routes() {
-        error_log('[AUTOPRESS AI DEBUG] Registering REST API endpoints on rest_api_init hook...');
-
         register_rest_route('custom/v1', '/status', [
             'methods' => 'GET',
             'callback' => [$this, 'status_check'],
@@ -28,57 +30,72 @@ class AutoPress_AI_Helper {
         register_rest_route('custom/v1', '/get-languages', [
             'methods' => 'GET',
             'callback' => [$this, 'get_polylang_languages'],
-            'permission_callback' => [$this, 'permission_check']
+            'permission_callback' => [$this, 'permission_check_v2']
         ]);
         
         register_rest_route('custom/v1', '/link-translations', [
             'methods' => 'POST',
             'callback' => [$this, 'custom_api_link_translations'],
-            'permission_callback' => [$this, 'permission_check']
+            'permission_callback' => [$this, 'permission_check_v2']
         ]);
+
         register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', [
             'methods' => 'POST',
             'callback' => [$this, 'custom_api_trash_single_post'],
-            'permission_callback' => [$this, 'permission_check']
+            'permission_callback' => [$this, 'permission_check_v2']
         ]);
+
         register_rest_route('custom/v1', '/batch-trash-posts', [
             'methods' => 'POST',
             'callback' => [$this, 'custom_api_batch_trash_posts'],
-            'permission_callback' => [$this, 'permission_check']
+            'permission_callback' => [$this, 'permission_check_v2']
         ]);
-        register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_regenerate_elementor_css'],
-            'permission_callback' => [$this, 'permission_check']
-        ]);
-        register_rest_route('custom/v1', '/menus', [
-            'methods' => 'GET',
-            'callback' => [$this, 'custom_api_get_all_menus'],
-            'permission_callback' => [$this, 'permission_check']
-        ]);
-        register_rest_route('custom/v1', '/clone-menu', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_clone_menu'],
-            'permission_callback' => [$this, 'permission_check']
-        ]);
-        register_rest_route('custom-api/v1', '/update-product-images', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_update_product_images'],
-            'permission_callback' => [$this, 'permission_check']
-        ]);
+
         register_rest_route('custom/v1', '/batch-update-status', [
             'methods' => 'POST',
             'callback' => [$this, 'custom_api_batch_update_status'],
-            'permission_callback' => [$this, 'permission_check']
+            'permission_callback' => [$this, 'permission_check_v2']
+        ]);
+        
+        register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_regenerate_elementor_css'],
+            'permission_callback' => [$this, 'permission_check_v2']
         ]);
 
-        error_log('[AUTOPRESS AI DEBUG] All endpoints registered successfully.');
+        register_rest_route('custom/v1', '/menus', [
+            'methods' => 'GET',
+            'callback' => [$this, 'custom_api_get_all_menus'],
+            'permission_callback' => [$this, 'permission_check_v2']
+        ]);
+
+        register_rest_route('custom/v1', '/clone-menu', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_clone_menu'],
+            'permission_callback' => [$this, 'permission_check_v2']
+        ]);
+
+        register_rest_route('custom-api/v1', '/update-product-images', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_update_product_images'],
+            'permission_callback' => [$this, 'permission_check_v2']
+        ]);
     }
 
-    public function permission_check(WP_REST_Request $request) {
+    public function permission_check_v2(WP_REST_Request $request) {
+        // Priority 1: Check for the custom secret key header
+        $secret_key = $request->get_header('X-Autopress-Secret');
+        if ($secret_key) {
+            $saved_secret = get_option('autopress_ai_secret_key');
+            if ($saved_secret && hash_equals($saved_secret, $secret_key)) {
+                return true;
+            }
+        }
+
+        // Priority 2: Fallback to the nonce check for backward compatibility
         $nonce = $request->get_header('X-WP-Nonce');
         if (!$nonce) {
-            return new WP_Error('no_nonce', 'Falta el encabezado de nonce.', ['status' => 401]);
+            return new WP_Error('no_auth_method', 'Falta la cabecera de autenticación (Nonce o Clave Secreta).', ['status' => 401]);
         }
         if (!wp_verify_nonce($nonce, 'wp_rest')) {
             return new WP_Error('invalid_nonce', 'Nonce inválido o expirado.', ['status' => 403]);
@@ -86,54 +103,38 @@ class AutoPress_AI_Helper {
         if (!current_user_can('edit_posts')) {
             return new WP_Error('insufficient_permissions', 'Usuario sin permisos para editar entradas.', ['status' => 403]);
         }
+
         return true;
     }
     
     private function get_plugin_version() {
-        if (!function_exists('get_plugin_data')) {
-            require_once ABSPATH . 'wp-admin/includes/plugin.php';
-        }
+        if (!function_exists('get_plugin_data')) { require_once ABSPATH . 'wp-admin/includes/plugin.php'; }
         return get_plugin_data(__FILE__)['Version'];
     }
 
     public function status_check() {
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
         $is_polylang_active = is_plugin_active('polylang/polylang.php') || is_plugin_active('polylang-pro/polylang.php');
-        $pll_functions_available = function_exists('pll_languages_list');
-        
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => $this->get_plugin_version(),
             'verified' => true,
             'message' => 'Plugin activo y verificado.',
             'woocommerce_active' => class_exists('WooCommerce'),
-            'polylang_active' => $is_polylang_active && $pll_functions_available,
+            'polylang_active' => $is_polylang_active,
         ], 200);
     }
 
     public function get_polylang_languages() {
-        if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
-            error_log('[AUTOPRESS AI DEBUG] FATAL: Polylang functions are not available even after plugins_loaded. Polylang might be disabled or broken.');
-            return new WP_Error('polylang_not_found', 'Las funciones de Polylang no están disponibles.', ['status' => 501]);
+        if (!function_exists('pll_languages_list')) {
+            return new WP_Error('polylang_not_found', 'La función pll_languages_list no existe. Asegúrate de que Polylang está activo.', ['status' => 501]);
         }
-
         $language_slugs = pll_languages_list(['hide_empty' => false]);
-
-        if (!is_array($language_slugs) || empty($language_slugs)) {
-            error_log('[AUTOPRESS AI DEBUG] Warning: pll_languages_list() returned an empty array. No languages configured in Polylang.');
-            return new WP_REST_Response([], 200);
-        }
-
+        if (!is_array($language_slugs)) { return new WP_REST_Response([], 200); }
         $formatted_languages = [];
         foreach ($language_slugs as $slug) {
-            $details = pll_get_language($slug);
-            if ($details && is_object($details)) {
-                $formatted_languages[] = [
-                    'code' => $details->slug,
-                    'name' => $details->name,
-                    'is_rtl' => (bool)$details->is_rtl,
-                ];
-            }
+            $details = pll_get_language($slug, 'name');
+            if ($details) { $formatted_languages[] = [ 'code' => $slug, 'name' => $details, 'is_rtl' => (bool)pll_is_rtl($slug) ]; }
         }
         return new WP_REST_Response($formatted_languages, 200);
     }
@@ -149,6 +150,4 @@ class AutoPress_AI_Helper {
     public function custom_api_batch_update_status(WP_REST_Request $request) { $post_ids = $request->get_param('post_ids'); $status = $request->get_param('status'); if (empty($post_ids) || !is_array($post_ids) || !in_array($status, ['publish', 'draft', 'pending', 'private'])) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs y un estado válido.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('edit_post', $id)) { $post_data = ['ID' => $id, 'post_status' => $status]; $result = wp_update_post($post_data, true); if (is_wp_error($result)) { $results['failed'][] = ['id' => $id, 'reason' => $result->get_error_message()]; } else { $results['success'][] = $id; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
 }
 
-add_action('plugins_loaded', function() {
-    new AutoPress_AI_Helper();
-}, 100);
+new AutoPress_AI_Helper();

@@ -15,19 +15,22 @@ export async function GET(req: NextRequest) {
     const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    const { wpApi } = await getApiClientsForUser(uid);
+    const { wpApi, nonce } = await getApiClientsForUser(uid);
     if (!wpApi) {
         // If WP is not configured, it's not an "error", but there are no menus.
         return NextResponse.json([]);
     }
-    
-    const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
-    if (!siteUrl) {
-      throw new Error("Could not determine base site URL from WordPress API configuration.");
-    }
-    const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/menus`;
 
-    const response = await wpApi.get(customEndpointUrl);
+    const headers: Record<string, string> = {};
+    if (nonce) {
+        headers['X-WP-Nonce'] = nonce;
+    } else {
+        throw new Error('Falta el encabezado de nonce.');
+    }
+    
+    const customEndpointUrl = `/custom/v1/menus`;
+
+    const response = await wpApi.get(customEndpointUrl, { headers });
     
     // Ensure the response is an array, even if the plugin returns something unexpected.
     if (response.data && Array.isArray(response.data)) {

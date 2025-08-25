@@ -5,11 +5,12 @@ interface WordPressCredentials {
   url: string;
   username: string;
   applicationPassword: string;
+  pluginSecretKey?: string; // Make the secret key optional
 }
 
 interface WordPressApi {
   api: AxiosInstance;
-  nonce: string;
+  nonce: string; // Nonce for WordPress REST API
 }
 
 /**
@@ -19,7 +20,7 @@ interface WordPressApi {
  * @returns {Promise<WordPressApi | null>} A configured Axios instance and a nonce, or null if credentials are incomplete.
  */
 export async function createWordPressApi(credentials: WordPressCredentials): Promise<WordPressApi | null> {
-  let { url, username, applicationPassword } = credentials;
+  let { url, username, applicationPassword, pluginSecretKey } = credentials;
 
   if (!url || !username || !applicationPassword) {
     console.warn("[createWordPressApi] Incomplete credentials provided. Cannot create API client.");
@@ -32,30 +33,39 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
 
   try {
     const authHeader = `Basic ${Buffer.from(`${username}:${applicationPassword}`).toString('base64')}`;
+    
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Authorization': authHeader,
+    };
+
+    if (pluginSecretKey) {
+        headers['X-Autopress-Secret'] = pluginSecretKey;
+    }
 
     const api = axios.create({
       baseURL: `${url}/wp-json/wp/v2`,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': authHeader,
-      },
+      headers: headers,
       timeout: 45000, 
     });
 
     let nonce = '';
-    try {
-        const nonceResponse = await api.get('/users/me', { params: { context: 'edit' } });
-        nonce = nonceResponse.headers['x-wp-nonce'] || '';
-        if (!nonce) {
-             console.warn('[createWordPressApi] Nonce was not found in the response headers from /users/me.');
-        } else {
-             console.log('[createWordPressApi] Successfully fetched a new nonce from WordPress.');
+    // Only attempt to fetch a nonce if we don't have the secret key (fallback method)
+    if (!pluginSecretKey) {
+        try {
+            const nonceResponse = await api.get('/users/me', { params: { context: 'edit' } });
+            nonce = nonceResponse.headers['x-wp-nonce'] || '';
+            if (nonce) {
+                 console.log('[createWordPressApi] Successfully fetched a new nonce from WordPress.');
+            } else {
+                 console.warn('[createWordPressApi] Nonce was not found in the response headers from /users/me.');
+            }
+        } catch (nonceError: any) {
+            const errorDetails = nonceError.response 
+                ? `Status: ${nonceError.response.status}. WordPress Message: ${JSON.stringify(nonceError.response.data?.message || nonceError.response.data)}`
+                : nonceError.message;
+            console.error(`[createWordPressApi] FAILED to fetch nonce. This is a critical authentication error. Details: ${errorDetails}`);
         }
-    } catch (nonceError: any) {
-        const errorDetails = nonceError.response 
-            ? `Status: ${nonceError.response.status}. WordPress Message: ${JSON.stringify(nonceError.response.data?.message || nonceError.response.data)}`
-            : nonceError.message;
-        console.error(`[createWordPressApi] FAILED to fetch nonce. This is a critical authentication error. Details: ${errorDetails}`);
     }
     
     return { api, nonce };

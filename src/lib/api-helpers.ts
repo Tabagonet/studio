@@ -77,6 +77,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     url: activeConnection.wordpressApiUrl,
     username: activeConnection.wordpressUsername,
     applicationPassword: activeConnection.wordpressApplicationPassword,
+    pluginSecretKey: activeConnection.pluginSecretKey, // Pass the new secret key
   });
   
   const shopifyApi = createShopifyApi({
