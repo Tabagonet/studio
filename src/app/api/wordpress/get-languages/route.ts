@@ -7,7 +7,6 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
     console.log('[API get-languages] Request received.');
-    let uid: string;
     try {
         const token = req.headers.get('Authorization')?.split('Bearer ')[1];
         if (!token) {
@@ -21,7 +20,7 @@ export async function GET(req: NextRequest) {
         }
 
         const decodedToken = await adminAuth.verifyIdToken(token);
-        uid = decodedToken.uid;
+        const uid = decodedToken.uid;
         console.log(`[API get-languages] User authenticated: ${uid}`);
 
         const { wpApi } = await getApiClientsForUser(uid);
@@ -29,38 +28,42 @@ export async function GET(req: NextRequest) {
             console.warn('[API get-languages] WordPress API not configured or invalid baseURL.');
             return NextResponse.json([]);
         }
-        
+
         const siteUrl = wpApi.defaults.baseURL.replace('/wp-json/wp/v2', '');
-        const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/get-languages`;
-        console.log(`[API get-languages] Calling custom endpoint: ${customEndpointUrl}`);
+        const statusEndpointUrl = `${siteUrl}/wp-json/custom/v1/status`;
+        const languagesEndpointUrl = `${siteUrl}/wp-json/custom/v1/get-languages`;
 
-        const response = await wpApi.get(customEndpointUrl);
-        
-        console.log(`[API get-languages] Received status ${response.status} from WordPress.`);
-
-        if (response.data?.code === 'polylang_not_found') {
-            const errorMessage = `Polylang not active on remote site. Plugin message: ${response.data.message}`;
-            console.error(`[API get-languages] CRITICAL ERROR fetching Polylang languages:`, response.data);
-            throw new Error(response.data.message);
+        // Verificar si Polylang está activo usando /status
+        const statusResponse = await wpApi.get(statusEndpointUrl);
+        console.log('[API get-languages] Status response:', JSON.stringify(statusResponse.data));
+        if (!statusResponse.data?.polylang_active) {
+            console.warn('[API get-languages] Polylang is not active according to /status endpoint.');
+            return NextResponse.json([]);
         }
+
+        // Obtener idiomas
+        const response = await wpApi.get(languagesEndpointUrl);
+
+        console.log(`[API get-languages] Received status ${response.status} from WordPress.`);
 
         if (response.data && Array.isArray(response.data)) {
             if (response.data.every(item => typeof item === 'object' && item !== null && 'code' in item && 'name' in item)) {
                 console.log(`[API get-languages] Success. Returning ${response.data.length} languages.`);
                 return NextResponse.json(response.data);
             } else {
-                console.warn("[API get-languages] Invalid response format from get-languages endpoint, returning empty array. Data:", JSON.stringify(response.data));
+                console.warn('[API get-languages] Invalid response format from get-languages:', JSON.stringify(response.data));
                 return NextResponse.json([]);
             }
+        } else if (response.data?.code) {
+            console.warn(`[API get-languages] Plugin error: ${response.data.code} - ${response.data.message}`);
+            return NextResponse.json([]);
         } else {
-            console.warn("[API get-languages] Invalid or empty response from get-languages endpoint, returning empty array. Data:", JSON.stringify(response.data));
+            console.warn('[API get-languages] Invalid or empty response from get-languages:', JSON.stringify(response.data));
             return NextResponse.json([]);
         }
     } catch (error: any) {
-        const errorMessage = error.response?.data?.message || error.message || 'Unknown error occurred';
-        console.error(`[API get-languages] CRITICAL ERROR in catch block: ${errorMessage}`, error.response?.data);
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+        const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
+        console.error(`[API get-languages] CRITICAL ERROR fetching Polylang languages: ${errorMessage}`, error.response?.data);
+        return NextResponse.json([]);
     }
 }
-
-    
