@@ -1,4 +1,3 @@
-
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -51,9 +50,10 @@ function custom_api_status_check($request) {
 }
 
 function custom_api_get_polylang_languages() {
-    if ( ! function_exists( 'pll_languages_list' ) ) {
+    if ( ! function_exists( 'pll_languages_list' ) || ! function_exists('pll_get_language') ) {
         return new WP_REST_Response( [], 200 );
     }
+    // Use pll_languages_list to get all defined languages slugs, regardless of content. This is the correct way.
     $language_slugs = pll_languages_list();
     if (empty($language_slugs)) {
         return new WP_REST_Response( [], 200 );
@@ -61,6 +61,7 @@ function custom_api_get_polylang_languages() {
     
     $formatted_languages = [];
     foreach ($language_slugs as $slug) {
+        // Then get the details for each language from its slug
         $details = pll_get_language($slug);
         if ($details) {
             $formatted_languages[] = [
@@ -215,9 +216,6 @@ function custom_api_update_product_images(WP_REST_Request $request) {
 // == HOOKS AND REGISTRATIONS ==
 
 add_action('admin_menu', 'autopress_ai_add_admin_menu');
-function autopress_ai_add_admin_menu() {
-    add_options_page('AutoPress AI Helper - v' . autopress_ai_get_plugin_version(), 'AutoPress AI', 'manage_options', 'autopress-ai', 'autopress_ai_options_page');
-}
 function autopress_ai_options_page() { ?> <div class="wrap"> <h1><?php echo esc_html(get_admin_page_title()); ?></h1> <p>Este plugin añade las funcionalidades necesarias a la API de WordPress para que la aplicación principal de AutoPress AI pueda comunicarse con tu sitio de forma segura.</p> <p>Toda la configuración de las claves API se gestiona directamente desde la aplicación AutoPress AI en <a href="https://autopress.intelvisual.es/settings/connections" target="_blank">Ajustes > Conexiones</a>.</p> <h2>Verificar Conexión</h2> <p>Haz clic en el botón de abajo para comprobar si el plugin puede comunicarse correctamente con la plataforma de AutoPress AI.</p> <button id="autopress-verify-connection" class="button button-primary">Verificar Conexión</button> <div id="autopress-verify-result" style="margin-top: 15px; padding: 10px; border-left-width: 4px; border-left-style: solid; display: none;"></div> </div> <script> document.getElementById('autopress-verify-connection').addEventListener('click', function() { var button = this; var resultDiv = document.getElementById('autopress-verify-result'); resultDiv.style.display = 'block'; resultDiv.textContent = 'Verificando...'; resultDiv.style.borderColor = '#cccccc'; button.disabled = true; fetch('<?php echo esc_url_raw(get_rest_url(null, 'custom/v1/status')); ?>', { headers: { 'X-WP-Nonce': '<?php echo esc_js(wp_create_nonce('wp_rest')); ?>' } }).then(response => response.json().then(data => ({ ok: response.ok, body: data }))).then(({ ok, body }) => { if (ok && body.verified) { resultDiv.textContent = '¡Éxito! ' + body.message; resultDiv.style.borderColor = '#46b450'; } else { resultDiv.textContent = 'Error: ' + (body.message || 'La respuesta no fue la esperada.'); resultDiv.style.borderColor = '#dc3232'; } button.disabled = false; }).catch(error => { resultDiv.textContent = 'Error de red o de comunicación: ' + error.message; resultDiv.style.borderColor = '#dc3232'; button.disabled = false; }); }); </script> <?php }
 
 add_action('init', function() {
