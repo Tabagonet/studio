@@ -60,21 +60,36 @@ function custom_api_update_product_images(WP_REST_Request $request) { $product_i
 // API endpoint to get the list of Polylang languages
 function custom_api_get_polylang_languages() {
     if (!function_exists('pll_languages_list')) {
-        return new WP_Error('polylang_not_active', 'Polylang plugin is not active.', ['status' => 501]);
-    }
-    $language_slugs = pll_languages_list();
-    if (empty($language_slugs)) {
         return new WP_REST_Response([], 200);
     }
+    $raw_languages = pll_languages_list(['fields' => ['slug', 'name']]);
     $formatted_languages = [];
-    foreach ($language_slugs as $slug) {
-        $details = pll_get_language($slug);
-        if ($details) {
-            $formatted_languages[] = [ 'code' => $details->slug, 'name' => $details->name ];
+    if (!empty($raw_languages)) {
+        // The function returns a flat array like [slug1, name1, slug2, name2], we need to pair them up.
+        for ($i = 0; $i < count($raw_languages); $i += 2) {
+             if(isset($raw_languages[$i]) && isset($raw_languages[$i+1])) {
+                $formatted_languages[] = [
+                    'code' => $raw_languages[$i], // slug
+                    'name' => $raw_languages[$i+1] // name
+                ];
+            }
         }
     }
     return new WP_REST_Response($formatted_languages, 200);
 }
+
+function custom_api_status_check($request) {
+    return new WP_REST_Response([
+        'status' => 'ok',
+        'plugin_version' => autopress_ai_get_plugin_version(),
+        'verified' => true,
+        'message' => 'Plugin activo y verificado.',
+        'woocommerce_active' => class_exists('WooCommerce'),
+        'polylang_active' => function_exists('pll_get_post_language'),
+        'front_page_id' => (int) get_option('page_on_front', 0)
+    ], 200);
+}
+
 
 // Register all custom endpoints
 function autopress_ai_register_rest_endpoints() {
@@ -101,7 +116,6 @@ function autopress_ai_register_rest_endpoints() {
         register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => 'autopress_ai_permission_check']);
     });
 
-    function custom_api_status_check($request) { return new WP_REST_Response(['status' => 'ok', 'plugin_version' => autopress_ai_get_plugin_version(), 'verified' => true, 'message' => 'Plugin activo y verificado.', 'woocommerce_active' => class_exists('WooCommerce'), 'polylang_active' => function_exists('pll_get_post_language'), 'front_page_id' => (int) get_option('page_on_front', 0)], 200); }
     function custom_api_link_translations($request) { if (!function_exists('pll_save_post_translations')) { return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]); } $translations = $request->get_param('translations'); if (empty($translations) || !is_array($translations)) { return new WP_Error('invalid_payload', 'Se requiere un array asociativo de traducciones.', ['status' => 400]); } $sanitized = []; foreach ($translations as $lang => $post_id) { $sanitized[sanitize_key($lang)] = absint($post_id); } pll_save_post_translations($sanitized); return new WP_REST_Response(['success' => true, 'message' => 'Traducciones enlazadas.'], 200); }
     function custom_api_trash_single_post($request) { $post_id = $request->get_param('id'); $id = absint($post_id); if (!$id) { return new WP_Error('invalid_id', 'ID de post inválido.', ['status' => 400]); } if (!current_user_can('delete_post', $id)) { return new WP_Error('permission_denied', 'No tienes permiso para eliminar este post.', ['status' => 403]); } if (wp_trash_post($id)) { return new WP_REST_Response(['success' => true, 'message' => "Post {$id} movido a la papelera."], 200); } else { return new WP_Error('trash_failed', "No se pudo mover el post {$id} a la papelera.", ['status' => 500]); } }
     function custom_api_batch_trash_posts($request) { $post_ids = $request->get_param('post_ids'); if (empty($post_ids) || !is_array($post_ids)) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs de entradas.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('delete_post', $id)) { $translations = function_exists('pll_get_post_translations') ? pll_get_post_translations($id) : [$id]; foreach ($translations as $trans_id) { if (is_numeric($trans_id)) { if (wp_trash_post(absint($trans_id))) { if (!in_array($id, $results['success'])) $results['success'][] = $id; } else { $results['failed'][] = ['id' => $id, 'reason' => 'Fallo en wp_trash_post para la traducción ' . $trans_id]; } } } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
@@ -109,3 +123,5 @@ function autopress_ai_register_rest_endpoints() {
     function custom_api_get_all_menus() { $menus = get_terms('nav_menu', ['hide_empty' => false]); $formatted_menus = []; if ($menus && !is_wp_error($menus)) { foreach ($menus as $menu) { $formatted_menus[] = ['id' => $menu->term_id, 'name' => $menu->name, 'slug' => $menu->slug]; } } return new WP_REST_Response($formatted_menus, 200); }
     function custom_api_clone_menu(WP_REST_Request $request) { $menu_id = $request->get_param('menu_id'); $target_lang_slug = $request->get_param('target_lang'); if (!function_exists('pll_get_post')) { return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]); } $original_menu = wp_get_nav_menu_object($menu_id); if (!$original_menu) { return new WP_Error('menu_not_found', 'Menú original no encontrado.', ['status' => 404]); } $new_menu_name = $original_menu->name . " ($target_lang_slug)"; if (wp_get_nav_menu_object($new_menu_name)) { return new WP_Error('menu_exists', 'Ya existe un menú con este nombre para el idioma de destino.', ['status' => 409]); } $new_menu_id = wp_create_nav_menu($new_menu_name); pll_set_term_language($new_menu_id, $target_lang_slug); $original_items = wp_get_nav_menu_items($menu_id); if (empty($original_items)) { return new WP_REST_Response(['success' => true, 'message' => 'Menú clonado (vacío).'], 200); } $id_map = []; foreach ($original_items as $item) { $new_item_data = ['menu-item-type' => $item->type, 'menu-item-status' => 'publish', 'menu-item-parent-id' => isset($id_map[$item->menu_item_parent]) ? $id_map[$item->menu_item_parent] : 0, 'menu-item-title' => $item->title]; if ($item->type === 'post_type' || $item->type === 'post_type_archive') { $translated_id = pll_get_post($item->object_id, $target_lang_slug); if ($translated_id) { $new_item_data['menu-item-object-id'] = $translated_id; $new_item_data['menu-item-object'] = $item->object; } else { continue; } } elseif ($item->type === 'taxonomy') { $translated_id = pll_get_term($item->object_id, $target_lang_slug); if ($translated_id) { $new_item_data['menu-item-object-id'] = $translated_id; $new_item_data['menu-item-object'] = $item->object; } else { continue; } } else { $new_item_data['menu-item-url'] = $item->url; } $new_item_id = wp_update_nav_menu_item($new_menu_id, 0, $new_item_data); if (is_numeric($new_item_id)) { $id_map[$item->ID] = $new_item_id; } } return new WP_REST_Response(['success' => true, 'message' => "Menú clonado y traducido con éxito a '{$target_lang_slug}'."], 200); }
 }
+
+    
