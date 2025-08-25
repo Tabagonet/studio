@@ -11,6 +11,8 @@ import { getApiClientsForUser, getPromptForConnection, getEntityRef as getEntity
 const languageCodeToName: Record<string, string> = {
     'es': 'Spanish', 'en': 'English', 'fr': 'French',
     'de': 'German', 'pt': 'Portuguese', 'it': 'Italian',
+    'nl': 'Dutch', 'ru': 'Russian', 'ja': 'Japanese',
+    'zh': 'Chinese', 'ar': 'Arabic', 'ko': 'Korean',
 };
 
 const BlogContentInputSchema = z.object({

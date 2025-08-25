@@ -113,6 +113,7 @@ export interface WordPressUser {
 export interface Language {
   code: string;
   name: string;
+  is_rtl?: boolean;
 }
 
 export interface BlogPostData {
@@ -126,8 +127,8 @@ export interface BlogPostData {
   categoryPath?: string;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
-  sourceLanguage: string; // Language name, e.g., "Spanish"
-  targetLanguages: string[]; // Array of language names
+  sourceLanguage: string; // Now the language CODE, e.g., "es"
+  targetLanguages: string[]; // Array of language CODES
   author: WordPressUser | null;
   publishDate: Date | null;
 }

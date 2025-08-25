@@ -30,18 +30,28 @@ export async function GET(req: NextRequest) {
 
     const response = await wpApi.get(customEndpointUrl);
     
+    // The plugin now correctly handles errors and returns WP_Error objects.
+    // If the response is not OK, it means Polylang isn't active or there's another issue.
+    // Axios will throw for non-2xx responses, which will be caught below.
     if (response.data && Array.isArray(response.data)) {
-      return NextResponse.json(response.data);
+       // Further validation to ensure the data has the correct shape
+      if (response.data.every(item => typeof item === 'object' && item !== null && 'code' in item && 'name' in item)) {
+        return NextResponse.json(response.data);
+      } else {
+        console.warn("Invalid response format from get-languages endpoint, returning empty array.");
+        return NextResponse.json([]);
+      }
     } else {
-      // If the response is not what we expect, return an empty array for safety.
-      console.warn("Invalid response format from get-languages endpoint, returning empty array.");
+      // Handle cases where the endpoint returns a non-array response unexpectedly
       return NextResponse.json([]);
     }
 
   } catch (error: any) {
-    // If ANY error occurs (404, auth error, etc.), we return an empty array.
-    // The UI will show that no languages are available, which is functionally correct.
-    console.error('Error fetching Polylang languages, returning empty array:', error.response?.data || error.message);
+    // This block will now catch errors from Axios (e.g., 404, 501 from WP_Error)
+    // and other unexpected errors. In all cases, we return an empty array to the client
+    // to prevent crashes, while logging the actual error on the server.
+    const errorMessage = error.response?.data?.message || error.message || 'Unknown error occurred';
+    console.error(`Error fetching Polylang languages, returning empty array. Reason: ${errorMessage}`);
     return NextResponse.json([]);
   }
 }

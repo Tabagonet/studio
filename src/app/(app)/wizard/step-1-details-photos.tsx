@@ -88,9 +88,8 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             const langData = await langResponse.json();
             setAvailableLanguages(langData);
             if (langData.length > 0 && !productData.language) {
-                // Find the Spanish language object if available
-                const spanishLang = langData.find((l: Language) => l.code === 'es');
-                updateProductData({ language: spanishLang ? spanishLang.name : langData[0].name });
+                 const spanishLang = langData.find((l: Language) => l.code === 'es');
+                 updateProductData({ language: spanishLang ? spanishLang.code : langData[0].code });
             }
         } else { console.warn('Could not load Polylang languages.'); setAvailableLanguages([]); }
 
@@ -220,10 +219,10 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
     updateProductData({ attributes: newAttributes });
   };
   
-  const handleLanguageToggle = (langName: string) => {
-      const newLangs = productData.targetLanguages?.includes(langName)
-          ? productData.targetLanguages.filter(l => l !== langName)
-          : [...(productData.targetLanguages || []), langName];
+  const handleLanguageToggle = (langCode: string) => {
+      const newLangs = productData.targetLanguages?.includes(langCode)
+          ? productData.targetLanguages.filter(l => l !== langCode)
+          : [...(productData.targetLanguages || []), langCode];
       updateProductData({ targetLanguages: newLangs });
   };
   
@@ -234,7 +233,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
   };
   
-  const currentTargetLanguages = availableLanguages.filter(l => l.name !== productData.language);
+  const currentTargetLanguages = availableLanguages.filter(l => l.code !== productData.language);
 
   const handleGenerateContentWithAI = async () => {
     if (!productData.name) {
@@ -614,14 +613,14 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
                               <Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}>
                                 <SelectTrigger><SelectValue /></SelectTrigger>
                                 <SelectContent>
-                                    {availableLanguages.map(lang => (<SelectItem key={lang.code} value={lang.name}>{lang.name}</SelectItem>))}
+                                    {availableLanguages.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
                                 </SelectContent>
                               </Select>
                           </div>
                           <div>
                               <Label>Crear traducciones en:</Label>
                               <div className="grid grid-cols-2 gap-2 pt-2">
-                                {currentTargetLanguages.map(lang => (<div key={lang.code} className="flex items-center space-x-2"><Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.name)} onCheckedChange={() => handleLanguageToggle(lang.name)} /><Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label></div>))}
+                                {currentTargetLanguages.map(lang => (<div key={lang.code} className="flex items-center space-x-2"><Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} /><Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label></div>))}
                               </div>
                           </div>
                         </>
