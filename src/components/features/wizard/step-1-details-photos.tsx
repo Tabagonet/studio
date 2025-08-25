@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -10,8 +9,8 @@ import { Button } from '@/components/ui/button';
 import { ImageUploader } from '@/components/features/wizard/image-uploader';
 import { VariationEditor } from '@/components/features/products/variation-editor';
 import { GroupedProductSelector } from '@/components/features/wizard/grouped-product-selector';
-import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, LinkSuggestion, SuggestLinksOutput } from '@/lib/types';
-import { PRODUCT_TYPES, ALL_LANGUAGES } from '@/lib/constants';
+import type { ProductData, ProductAttribute, ProductPhoto, ProductType, WooCommerceCategory, LinkSuggestion, SuggestLinksOutput, Language } from '@/lib/types';
+import { PRODUCT_TYPES } from '@/lib/constants';
 import { PlusCircle, Trash2, Loader2, Sparkles, Languages, CheckCircle, AlertCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -46,6 +45,9 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const [wooCategories, setWooCategories] = useState<WooCommerceCategory[]>([]);
   const [supplierCategories, setSupplierCategories] = useState<WooCommerceCategory[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
+  const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
+  const [isLoadingLanguages, setIsLoadingLanguages] = useState(true);
+
   const [isGenerating, setIsGenerating] = useState(false);
   const [isGeneratingImageMeta, setIsGeneratingImageMeta] = useState(false);
   const [skuStatus, setSkuStatus] = useState<{ status: 'idle' | 'checking' | 'exists' | 'available'; message: string }>({ status: 'idle', message: '' });
@@ -65,48 +67,52 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   const debouncedName = useDebounce(productData.name, 500);
   
   useEffect(() => {
-    const fetchCategories = async (token: string) => {
-      console.log("[WIZARD][AUDIT] Fetching categories...");
+    const fetchData = async (token: string) => {
       setIsLoadingCategories(true);
+      setIsLoadingLanguages(true);
       try {
-        const response = await fetch('/api/woocommerce/categories', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || `Error: ${response.status}`);
-        }
-        const data: WooCommerceCategory[] = await response.json();
+        const [catResponse, langResponse] = await Promise.all([
+          fetch('/api/woocommerce/categories', { headers: { 'Authorization': `Bearer ${token}` } }),
+          fetch('/api/wordpress/get-languages', { headers: { 'Authorization': `Bearer ${token}` } })
+        ]);
         
-        const parentSupplierCategory = data.find(c => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
-        const supplierParentId = parentSupplierCategory?.id;
+        if (catResponse.ok) {
+            const data: WooCommerceCategory[] = await catResponse.json();
+            const parentSupplierCategory = data.find(c => c.name.toLowerCase() === 'proveedores' && c.parent === 0);
+            const supplierParentId = parentSupplierCategory?.id;
+            setSupplierCategories(supplierParentId ? data.filter(c => c.parent === supplierParentId) : []);
+            setWooCategories(data.filter(c => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId)));
+        } else { throw new Error('Failed to load categories'); }
+        
+        if (langResponse.ok) {
+            const langData = await langResponse.json();
+            setAvailableLanguages(langData);
+            if (langData.length > 0 && !productData.language) {
+                updateProductData({ language: langData[0].name });
+            }
+        } else { console.warn('Could not load Polylang languages.'); setAvailableLanguages([]); }
 
-        const suppliers = supplierParentId ? data.filter(c => c.parent === supplierParentId) : [];
-        setSupplierCategories(suppliers);
-        
-        const regularCategories = data.filter(c => !supplierParentId || (c.id !== supplierParentId && c.parent !== supplierParentId));
-        setWooCategories(regularCategories);
-         console.log("[WIZARD][AUDIT] Categories fetched successfully.");
       } catch (error) {
-        toast({ title: "Error al Cargar Categorías", description: (error as Error).message, variant: "destructive" });
+        toast({ title: "Error al Cargar Datos", description: (error as Error).message, variant: "destructive" });
       } finally {
         setIsLoadingCategories(false);
+        setIsLoadingLanguages(false);
       }
     };
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
         if (user) {
             const token = await user.getIdToken();
-            fetchCategories(token);
+            fetchData(token);
         } else {
             setIsLoadingCategories(false);
+            setIsLoadingLanguages(false);
             setWooCategories([]);
             setSupplierCategories([]);
         }
     });
-
     return () => unsubscribe();
-  }, [toast]);
+  }, [toast, updateProductData, productData.language]);
   
   const checkProductExistence = useCallback(async (field: 'sku' | 'name', value: string, signal: AbortSignal) => {
     const setStatus = field === 'sku' ? setSkuStatus : setNameStatus;
@@ -226,7 +232,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
       });
   };
   
-  const availableTargetLanguages = ALL_LANGUAGES.filter(lang => lang.code !== productData.language);
+  const currentTargetLanguages = availableLanguages.filter(l => l.code !== productData.language);
 
   const handleGenerateContentWithAI = async () => {
     if (!productData.name) {
@@ -599,8 +605,25 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
               <Card>
                   <CardHeader><CardTitle className="flex items-center gap-2"><Languages /> Traducción (Opcional)</CardTitle><CardDescription>Crea automáticamente copias de este producto en otros idiomas.</CardDescription></CardHeader>
                   <CardContent className="space-y-4">
-                      <div><Label>Idioma de Origen</Label><Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}</SelectContent></Select></div>
-                      <div><Label>Crear traducciones en:</Label><div className="grid grid-cols-2 gap-2 pt-2">{availableTargetLanguages.map(lang => (<div key={lang.code} className="flex items-center space-x-2"><Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} /><Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label></div>))}</div></div>
+                      {isLoadingLanguages ? <Loader2 className="h-6 w-6 animate-spin"/> :
+                        <>
+                           <div>
+                              <Label>Idioma de Origen</Label>
+                              <Select name="language" value={productData.language} onValueChange={handleSourceLanguageChange}>
+                                <SelectTrigger><SelectValue /></SelectTrigger>
+                                <SelectContent>
+                                    {availableLanguages.map(lang => (<SelectItem key={lang.code} value={lang.name}>{lang.name}</SelectItem>))}
+                                </SelectContent>
+                              </Select>
+                          </div>
+                          <div>
+                              <Label>Crear traducciones en:</Label>
+                              <div className="grid grid-cols-2 gap-2 pt-2">
+                                {currentTargetLanguages.map(lang => (<div key={lang.code} className="flex items-center space-x-2"><Checkbox id={`lang-${lang.code}`} checked={productData.targetLanguages?.includes(lang.name)} onCheckedChange={() => handleLanguageToggle(lang.name)} /><Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label></div>))}
+                              </div>
+                          </div>
+                        </>
+                      }
                   </CardContent>
               </Card>
           </div>

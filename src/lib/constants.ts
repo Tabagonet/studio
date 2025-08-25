@@ -1,4 +1,3 @@
-
 import type { NavItem, ProductType, ProductData, BlogPostData, NavGroup } from '@/lib/types';
 import { Home, Wand2, Settings, Layers, Brain, UploadCloud, Users, LineChart, Newspaper, Bell, ClipboardList, SearchCheck, Copy, Building, Megaphone, Briefcase, Store, ListChecks, Lightbulb, FileText, Shield, Sparkles, User } from 'lucide-react';
 import { ShopifyIcon } from '@/components/core/icons';
@@ -138,14 +137,6 @@ export const INITIAL_BLOG_DATA: BlogPostData = {
   author: null,
   publishDate: null,
 };
-
-export const ALL_LANGUAGES = [
-    { code: 'Spanish', name: 'Español', slug: 'es' },
-    { code: 'English', name: 'Inglés', slug: 'en' },
-    { code: 'French', name: 'Francés', slug: 'fr' },
-    { code: 'German', name: 'Alemán', slug: 'de' },
-    { code: 'Portuguese', name: 'Portugués', slug: 'pt' },
-];
 
 export const AI_CREDIT_COSTS: { name: string; href: string, credits: number }[] = [
   { name: 'Asistente de Creación de Productos', href: '/wizard', credits: 10 },
@@ -287,3 +278,5 @@ The values for "actionPlan", "positives", and "improvements" MUST be arrays of s
 {{{checksSummary}}}`
     },
 };
+
+    
