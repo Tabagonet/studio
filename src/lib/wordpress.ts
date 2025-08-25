@@ -22,7 +22,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
   let { url, username, applicationPassword } = credentials;
 
   if (!url || !username || !applicationPassword) {
-    console.error("[createWordPressApi] Incomplete credentials:", { url, username, applicationPassword: '***' });
+    console.warn("[createWordPressApi] Incomplete credentials provided. Cannot create API client.");
     return null;
   }
   
@@ -43,7 +43,6 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
       timeout: 45000, 
     });
 
-    // Fetch the nonce by making an authenticated request to a core endpoint
     let nonce = '';
     try {
         const nonceResponse = await api.get('/users/me?context=edit');
@@ -54,8 +53,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
              console.log('[createWordPressApi] Successfully fetched a new nonce from WordPress.');
         }
     } catch (nonceError: any) {
-        console.error('[createWordPressApi] Failed to fetch nonce:', nonceError.message, nonceError.response?.data);
-        // Continue without nonce to allow non-authenticated requests (like /status) to proceed if needed.
+        console.error('[createWordPressApi] Failed to fetch nonce. API calls to protected endpoints will likely fail.', nonceError.message);
     }
     
     return { api, nonce };

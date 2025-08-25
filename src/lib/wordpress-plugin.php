@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones y otras funciones personalizadas para AutoPress AI.
-Version: 1.67
+Version: 1.68
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
@@ -12,12 +12,12 @@ if (!defined('ABSPATH')) exit;
 
 class AutoPress_AI_Helper {
     public function __construct() {
-        error_log('[AUTOPRESS AI DEBUG] AutoPress_AI_Helper constructor called.');
-        add_action('rest_api_init', [$this, 'register_routes'], 100); // Higher priority
+        error_log('[AUTOPRESS AI DEBUG] AutoPress_AI_Helper constructor initialized.');
+        add_action('rest_api_init', [$this, 'register_routes'], 100);
     }
 
     public function register_routes() {
-        error_log('[AUTOPRESS AI DEBUG] Registering REST API endpoints on rest_api_init...');
+        error_log('[AUTOPRESS AI DEBUG] Registering REST API endpoints on rest_api_init hook...');
 
         register_rest_route('custom/v1', '/status', [
             'methods' => 'GET',
@@ -72,20 +72,18 @@ class AutoPress_AI_Helper {
             'permission_callback' => [$this, 'permission_check']
         ]);
 
-        error_log('[AUTOPRESS AI DEBUG] All endpoints registered.');
+        error_log('[AUTOPRESS AI DEBUG] All endpoints registered successfully.');
     }
 
     public function permission_check(WP_REST_Request $request) {
         $nonce = $request->get_header('X-WP-Nonce');
-        $user_can = current_user_can('edit_posts');
-        error_log('[AUTOPRESS AI DEBUG] Permission check - Nonce: ' . ($nonce ? $nonce : 'missing') . ', User can edit_posts: ' . ($user_can ? 'true' : 'false'));
         if (!$nonce) {
             return new WP_Error('no_nonce', 'Falta el encabezado de nonce.', ['status' => 401]);
         }
         if (!wp_verify_nonce($nonce, 'wp_rest')) {
             return new WP_Error('invalid_nonce', 'Nonce inválido o expirado.', ['status' => 403]);
         }
-        if (!$user_can) {
+        if (!current_user_can('edit_posts')) {
             return new WP_Error('insufficient_permissions', 'Usuario sin permisos para editar entradas.', ['status' => 403]);
         }
         return true;
@@ -99,11 +97,10 @@ class AutoPress_AI_Helper {
     }
 
     public function status_check() {
-        error_log('[AUTOPRESS AI DEBUG] Endpoint /status hit.');
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
         $is_polylang_active = is_plugin_active('polylang/polylang.php') || is_plugin_active('polylang-pro/polylang.php');
-        $pll_functions_available = function_exists('pll_languages_list') && function_exists('pll_get_language');
-        error_log('[AUTOPRESS AI DEBUG] Is Polylang active: ' . ($is_polylang_active ? 'true' : 'false') . ', Functions available: ' . ($pll_functions_available ? 'true' : 'false'));
+        $pll_functions_available = function_exists('pll_languages_list');
+        
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => $this->get_plugin_version(),
@@ -115,36 +112,15 @@ class AutoPress_AI_Helper {
     }
 
     public function get_polylang_languages() {
-        error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit at ' . date('Y-m-d H:i:s'));
-
-        include_once ABSPATH . 'wp-admin/includes/plugin.php';
-        $is_polylang_active = is_plugin_active('polylang/polylang.php') || is_plugin_active('polylang-pro/polylang.php');
-        error_log('[AUTOPRESS AI DEBUG] Is Polylang active: ' . ($is_polylang_active ? 'true' : 'false'));
-
-        if ($is_polylang_active && (!function_exists('pll_languages_list') || !function_exists('pll_get_language'))) {
-            error_log('[AUTOPRESS AI DEBUG] Polylang functions not available, attempting to load...');
-             if (file_exists(WP_PLUGIN_DIR . '/polylang/polylang.php')) {
-                include_once WP_PLUGIN_DIR . '/polylang/polylang.php';
-            } elseif (file_exists(WP_PLUGIN_DIR . '/polylang-pro/polylang.php')) {
-                include_once WP_PLUGIN_DIR . '/polylang-pro/polylang.php';
-            }
-            if (class_exists('PLL') && function_exists('PLL')) {
-                PLL()->init();
-                do_action('pll_init');
-                error_log('[AUTOPRESS AI DEBUG] Polylang initialized via PLL()->init() and pll_init.');
-            }
-        }
-
         if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
-            error_log('[AUTOPRESS AI DEBUG] Polylang functions still unavailable after init attempt.');
-            return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles.', ['status' => 501]);
+            error_log('[AUTOPRESS AI DEBUG] FATAL: Polylang functions are not available even after plugins_loaded. Polylang might be disabled or broken.');
+            return new WP_Error('polylang_not_found', 'Las funciones de Polylang no están disponibles.', ['status' => 501]);
         }
 
         $language_slugs = pll_languages_list(['hide_empty' => false]);
-        error_log('[AUTOPRESS AI DEBUG] pll_languages_list() returned: ' . print_r($language_slugs, true));
 
         if (!is_array($language_slugs) || empty($language_slugs)) {
-            error_log('[AUTOPRESS AI DEBUG] No languages configured in Polylang.');
+            error_log('[AUTOPRESS AI DEBUG] Warning: pll_languages_list() returned an empty array. No languages configured in Polylang.');
             return new WP_REST_Response([], 200);
         }
 
@@ -157,12 +133,8 @@ class AutoPress_AI_Helper {
                     'name' => $details->name,
                     'is_rtl' => (bool)$details->is_rtl,
                 ];
-            } else {
-                error_log('[AUTOPRESS AI DEBUG] pll_get_language() returned null for slug: ' . $slug);
             }
         }
-
-        error_log('[AUTOPRESS AI DEBUG] Formatted languages: ' . print_r($formatted_languages, true));
         return new WP_REST_Response($formatted_languages, 200);
     }
     
@@ -178,6 +150,5 @@ class AutoPress_AI_Helper {
 }
 
 add_action('plugins_loaded', function() {
-    error_log('[AUTOPRESS AI DEBUG] plugins_loaded hook fired, initializing AutoPress_AI_Helper.');
     new AutoPress_AI_Helper();
 }, 100);
