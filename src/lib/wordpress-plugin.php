@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
-Version: 1.64
+Version: 1.65
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
@@ -19,7 +19,7 @@ class AutoPress_AI_Helper {
     public function register_routes() {
         error_log('[AUTOPRESS AI DEBUG] rest_api_init hook fired. Registering endpoints...');
 
-        // Register meta fields
+        // Register meta fields first
         $post_types = get_post_types(['public' => true], 'names');
         $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
         foreach ($post_types as $post_type) {
@@ -38,7 +38,7 @@ class AutoPress_AI_Helper {
         }
 
         // Register custom routes
-        register_rest_route('custom/v1', '/status', ['methods' => 'GET', 'callback' => [$this, 'custom_api_status_check'], 'permission_callback' => '__return_true']);
+        register_rest_route('custom/v1', '/status', ['methods' => 'GET', 'callback' => [$this, 'custom_api_status_check'], 'permission_callback' => [$this, 'permission_check']]);
         register_rest_route('custom/v1', '/get-languages', ['methods' => 'GET', 'callback' => [$this, 'custom_api_get_polylang_languages'], 'permission_callback' => [$this, 'permission_check']]);
         register_rest_route('custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => [$this, 'custom_api_link_translations'], 'permission_callback' => [$this, 'permission_check']]);
         register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => [$this, 'custom_api_trash_single_post'], 'permission_callback' => [$this, 'permission_check']]);
@@ -67,6 +67,7 @@ class AutoPress_AI_Helper {
             'plugin_version' => $this->get_plugin_version(),
             'verified' => true,
             'message' => 'Plugin activo y verificado.',
+            'nonce' => wp_create_nonce('wp_rest'), // Generate and provide nonce here
             'woocommerce_active' => class_exists('WooCommerce'),
             'polylang_active' => function_exists('pll_get_post_language'),
             'front_page_id' => (int) get_option('page_on_front', 0),

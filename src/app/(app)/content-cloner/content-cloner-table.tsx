@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import * as React from "react";
@@ -464,7 +465,7 @@ export function ContentClonerTable() {
       <div className="flex items-center justify-between space-x-2 py-4">
         <div className="flex-1 text-sm text-muted-foreground">
           {table.getFilteredSelectedRowModel().rows.length} de{" "}
-          {table.getFilteredRowModel().rows.length} fila(s) seleccionadas.
+          {table.getCoreRowModel().rows.length} fila(s) seleccionadas.
         </div>
         <div className="flex items-center gap-4">
             <div className="flex items-center gap-2">
