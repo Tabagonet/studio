@@ -1,3 +1,4 @@
+// src/app/api/wordpress/get-languages/route.ts
 
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
@@ -32,8 +33,8 @@ export async function GET(req: NextRequest) {
         const siteUrl = wpApi.defaults.baseURL.replace('/wp-json/wp/v2', '');
         const statusEndpointUrl = `${siteUrl}/wp-json/custom/v1/status`;
         const languagesEndpointUrl = `${siteUrl}/wp-json/custom/v1/get-languages`;
-
-        // Verificar si Polylang está activo usando /status
+        
+        console.log(`[API get-languages] Checking status at: ${statusEndpointUrl}`);
         const statusResponse = await wpApi.get(statusEndpointUrl);
         console.log('[API get-languages] Status response:', JSON.stringify(statusResponse.data));
         if (!statusResponse.data?.polylang_active) {
@@ -41,7 +42,7 @@ export async function GET(req: NextRequest) {
             return NextResponse.json([]);
         }
 
-        // Obtener idiomas
+        console.log(`[API get-languages] Polylang active. Fetching languages from: ${languagesEndpointUrl}`);
         const response = await wpApi.get(languagesEndpointUrl);
 
         console.log(`[API get-languages] Received status ${response.status} from WordPress.`);

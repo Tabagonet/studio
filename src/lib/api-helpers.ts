@@ -31,7 +31,7 @@ interface ApiClients {
   shopifyApi: AxiosInstance | null;
   activeConnectionKey: string | null;
   settings: admin_types.firestore.DocumentData | undefined;
-  prompts: Record<string, string>; // NEW: Will hold the applicable prompts
+  prompts: Record<string, string>; 
 }
 
 export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
@@ -55,7 +55,6 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   const allConnections = settingsSource.connections || {};
   const activeConnectionKey = settingsSource.activeConnectionKey;
 
-  // Prepare a unified prompts object
   const finalPrompts: Record<string, string> = {};
   for (const key in PROMPT_DEFAULTS) {
       finalPrompts[key] = await getPromptForConnection(key, activeConnectionKey, entityRef);
@@ -87,12 +86,6 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
   return { wooApi, wpApi, shopifyApi, activeConnectionKey, settings: settingsSource, prompts: finalPrompts };
 }
 
-/**
- * Retrieves Shopify Partner App credentials from Firestore. This function now reads
- * from the global configuration and returns all necessary credential fields.
- * @returns The credentials object including partner and custom app details.
- * @throws If credentials are not configured in the global settings.
- */
 export async function getPartnerCredentials(): Promise<PartnerAppConnectionData> {
     const adminDb = admin.firestore();
     if (!adminDb) {
@@ -157,12 +150,6 @@ export function extractElementorWidgets(elementorDataString: string): ExtractedW
     }
 }
 
-
-/**
- * Recursively traverses Elementor's data structure to collect all user-visible text content.
- * @param data The 'elements' array or any nested object/array from Elementor's data.
- * @param texts The array to push found texts into.
- */
 function collectElementorTextsRecursive(data: any, texts: string[]): void {
     if (!data) return;
 
@@ -350,19 +337,16 @@ export function findElementorImageContext(elementorData: any[]): {
 }
 
 export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance) {
-  // If we already have dimensions, there's no need to fetch. Return immediately.
   if (image && image.width && image.height) {
     return image;
   }
   
   if (!image.mediaId) {
-    return image; // Can't fetch without an ID
+    return image; 
   }
 
   try {
     const { data } = await wpApi.get(`/media/${image.mediaId}`, { params: { context: 'view', _fields: 'id,alt_text,source_url,media_details' }});
-    // Return a new object with the original data plus the enriched fields.
-    // This prioritizes existing data (like alt from scraper) but adds missing info.
     return {
       ...image,
       alt: image.alt ?? data.alt_text ?? null,
@@ -371,7 +355,7 @@ export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance)
     };
   } catch (e) {
     console.warn(`Could not fetch media data for image ${image.mediaId}. It may have been deleted.`, e);
-    return image; // Return original image on failure
+    return image; 
   }
 }
 
@@ -706,13 +690,6 @@ export function replaceImageUrlInElementor(data: any, oldUrl: string, newUrl: st
     return { replaced, data: newData };
 }
 
-
-/**
- * Recursively finds image URLs and their context in Elementor JSON data.
- * This is a more robust version that checks multiple common keys for images.
- * @param {any} data The Elementor data (elements array, section, column, etc.).
- * @returns {Array} An array of objects, each containing the image URL, ID, width, and height.
- */
 export function findImageUrlsInElementor(data: any): { url: string; id: number | null, width: number | null, height: number | null }[] {
     const images: { url: string; id: number | null, width: number | null, height: number | null }[] = [];
     if (!data) return images;
@@ -731,7 +708,7 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
                     if (!value.url.includes('placeholder.png')) {
                         images.push({ url: value.url, id: value.id || null, width: value.width || null, height: value.height || null });
                     }
-                } else if (key === 'gallery' && Array.isArray(value)) { // Specifically handle 'gallery' widget
+                } else if (key === 'gallery' && Array.isArray(value)) { 
                     value.forEach(galleryImage => {
                         if (typeof galleryImage === 'object' && galleryImage !== null && typeof galleryImage.url === 'string' && galleryImage.url) {
                             if (!galleryImage.url.includes('placeholder.png')) {
@@ -748,6 +725,5 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
         }
     }
     
-    // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
