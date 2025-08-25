@@ -53,6 +53,7 @@ const connectionDataSchema = z.object({
     wordpressApiUrl: urlOrEmptyString.optional(),
     wordpressUsername: z.string().optional(),
     wordpressApplicationPassword: z.string().optional(),
+    pluginSecretKey: z.string().optional(), // FIX: Add the new field to the schema
     shopifyStoreUrl: shopifyUrlOrEmptyString.optional(),
     shopifyApiPassword: z.string().optional(),
 });
