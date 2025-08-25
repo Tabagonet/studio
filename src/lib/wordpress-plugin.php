@@ -2,7 +2,7 @@
 /*
 Plugin Name: AutoPress AI Helper
 Description: Añade endpoints a la REST API para gestionar traducciones y otras funciones personalizadas para AutoPress AI.
-Version: 1.69
+Version: 1.70
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
@@ -13,69 +13,16 @@ if (!defined('ABSPATH')) exit;
 class AutoPress_AI_Helper {
 
     public function __construct() {
-        add_action('plugins_loaded', [$this, 'initialize_plugin'], 100);
-    }
-
-    public function initialize_plugin() {
+        // We use a high priority to ensure our routes are registered after others like WooCommerce.
         add_action('rest_api_init', [$this, 'register_routes'], 100);
-        add_action('admin_menu', [$this, 'add_admin_menu']);
     }
-
-    public function add_admin_menu() {
-        add_menu_page(
-            'AutoPress AI',
-            'AutoPress AI',
-            'manage_options',
-            'autopress-ai-settings',
-            [$this, 'create_settings_page'],
-            'dashicons-superhero',
-            81
-        );
-    }
-
-    public function create_settings_page() {
-        // Check user capabilities
-        if (!current_user_can('manage_options')) {
-            return;
-        }
-
-        // Handle form submission
-        if (isset($_POST['autopress_secret_key_nonce']) && wp_verify_nonce($_POST['autopress_secret_key_nonce'], 'autopress_save_secret_key')) {
-            $secret_key = sanitize_text_field($_POST['autopress_secret_key']);
-            update_option('autopress_ai_secret_key', $secret_key);
-            echo '<div class="notice notice-success is-dismissible"><p>Clave secreta guardada con éxito.</p></div>';
-        }
-        
-        $current_key = get_option('autopress_ai_secret_key', '');
-        ?>
-        <div class="wrap">
-            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
-            <p>Configuración para el plugin de ayuda de AutoPress AI.</p>
-            <form method="post" action="">
-                <?php wp_nonce_field('autopress_save_secret_key', 'autopress_secret_key_nonce'); ?>
-                <table class="form-table" role="presentation">
-                    <tbody>
-                        <tr>
-                            <th scope="row">
-                                <label for="autopress_secret_key">Clave Secreta del Plugin</label>
-                            </th>
-                            <td>
-                                <input type="password" id="autopress_secret_key" name="autopress_secret_key" value="<?php echo esc_attr($current_key); ?>" class="regular-text" />
-                                <p class="description">
-                                    Introduce aquí la misma clave secreta que has configurado en los Ajustes de Conexión de la aplicación AutoPress AI. Esta clave se usa como método de autenticación alternativo.
-                                </p>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-                <?php submit_button('Guardar Clave Secreta'); ?>
-            </form>
-        </div>
-        <?php
-    }
-
-
+    
+    /**
+     * Registers all custom REST API routes for the plugin.
+     */
     public function register_routes() {
+        // --- PUBLIC, READ-ONLY ENDPOINTS ---
+        // These endpoints are safe to be public as they only read non-sensitive data.
         register_rest_route('custom/v1', '/status', [
             'methods' => 'GET',
             'callback' => [$this, 'status_check'],
@@ -85,82 +32,67 @@ class AutoPress_AI_Helper {
         register_rest_route('custom/v1', '/get-languages', [
             'methods' => 'GET',
             'callback' => [$this, 'get_polylang_languages'],
-            'permission_callback' => [$this, 'permission_check_v2']
-        ]);
-        
-        register_rest_route('custom/v1', '/link-translations', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_link_translations'],
-            'permission_callback' => [$this, 'permission_check_v2']
-        ]);
-
-        register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_trash_single_post'],
-            'permission_callback' => [$this, 'permission_check_v2']
-        ]);
-
-        register_rest_route('custom/v1', '/batch-trash-posts', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_batch_trash_posts'],
-            'permission_callback' => [$this, 'permission_check_v2']
-        ]);
-
-        register_rest_route('custom/v1', '/batch-update-status', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_batch_update_status'],
-            'permission_callback' => [$this, 'permission_check_v2']
-        ]);
-        
-        register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', [
-            'methods' => 'POST',
-            'callback' => [$this, 'custom_api_regenerate_elementor_css'],
-            'permission_callback' => [$this, 'permission_check_v2']
+            'permission_callback' => '__return_true'
         ]);
 
         register_rest_route('custom/v1', '/menus', [
             'methods' => 'GET',
             'callback' => [$this, 'custom_api_get_all_menus'],
-            'permission_callback' => [$this, 'permission_check_v2']
+            'permission_callback' => '__return_true'
+        ]);
+
+        // --- PROTECTED, WRITE ENDPOINTS ---
+        // These endpoints perform write operations and require authenticated user with edit permissions.
+        register_rest_route('custom/v1', '/link-translations', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_link_translations'],
+            'permission_callback' => [$this, 'permission_check_for_write']
+        ]);
+
+        register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_trash_single_post'],
+            'permission_callback' => [$this, 'permission_check_for_write']
+        ]);
+
+        register_rest_route('custom/v1', '/batch-trash-posts', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_batch_trash_posts'],
+            'permission_callback' => [$this, 'permission_check_for_write']
+        ]);
+        
+        register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_regenerate_elementor_css'],
+            'permission_callback' => [$this, 'permission_check_for_write']
         ]);
 
         register_rest_route('custom/v1', '/clone-menu', [
             'methods' => 'POST',
             'callback' => [$this, 'custom_api_clone_menu'],
-            'permission_callback' => [$this, 'permission_check_v2']
+            'permission_callback' => [$this, 'permission_check_for_write']
         ]);
 
         register_rest_route('custom-api/v1', '/update-product-images', [
             'methods' => 'POST',
             'callback' => [$this, 'custom_api_update_product_images'],
-            'permission_callback' => [$this, 'permission_check_v2']
+            'permission_callback' => [$this, 'permission_check_for_write']
+        ]);
+         register_rest_route('custom/v1', '/batch-update-status', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_batch_update_status'],
+            'permission_callback' => [$this, 'permission_check_for_write']
         ]);
     }
 
-    public function permission_check_v2(WP_REST_Request $request) {
-        // Priority 1: Check for the custom secret key header
-        $secret_key_header = $request->get_header('X-Autopress-Secret');
-        if ($secret_key_header) {
-            $saved_secret = get_option('autopress_ai_secret_key');
-            if ($saved_secret && hash_equals($saved_secret, $secret_key_header)) {
-                return true;
-            }
-            // If secret key is provided but doesn't match, fail immediately for security.
-             return new WP_Error('invalid_secret_key', 'La clave secreta del plugin no es correcta.', ['status' => 403]);
-        }
-
-        // Priority 2: Fallback to the nonce check for backward compatibility
-        $nonce = $request->get_header('X-WP-Nonce');
-        if (!$nonce) {
-            return new WP_Error('no_nonce', 'Falta el encabezado de nonce.', ['status' => 401]);
-        }
-        if (!wp_verify_nonce($nonce, 'wp_rest')) {
-            return new WP_Error('invalid_nonce', 'Nonce inválido o expirado.', ['status' => 403]);
-        }
+    /**
+     * Permission check for sensitive write operations.
+     * Relies on WordPress's built-in authentication via Application Passwords.
+     */
+    public function permission_check_for_write(WP_REST_Request $request) {
         if (!current_user_can('edit_posts')) {
-            return new WP_Error('insufficient_permissions', 'Usuario sin permisos para editar entradas.', ['status' => 403]);
+            return new WP_Error('insufficient_permissions', 'Usuario sin permisos suficientes para realizar esta acción.', ['status' => 403]);
         }
-
         return true;
     }
     

@@ -1,4 +1,3 @@
-
 // src/lib/wordpress.ts
 import axios, { AxiosInstance } from 'axios';
 
@@ -6,25 +5,25 @@ interface WordPressCredentials {
   url: string;
   username: string;
   applicationPassword: string;
-  pluginSecretKey?: string; // Make the secret key optional
+  pluginSecretKey?: string; // This is now optional and used for the new auth method.
 }
 
 interface WordPressApi {
   api: AxiosInstance;
-  nonce: string; // Nonce for WordPress REST API
+  nonce: string; // Nonce for WordPress REST API (kept for potential future use)
 }
 
 /**
- * Creates a new Axios instance configured for the WordPress REST API and fetches a nonce.
- * This is used in API routes to create a client with user-specific credentials.
+ * Creates a new Axios instance configured for the WordPress REST API.
+ * This now includes a fallback authentication mechanism using a secret key.
  * @param {WordPressCredentials} credentials - The user's WordPress API credentials.
  * @returns {Promise<WordPressApi | null>} A configured Axios instance and a nonce, or null if credentials are incomplete.
  */
 export async function createWordPressApi(credentials: WordPressCredentials): Promise<WordPressApi | null> {
   let { url, username, applicationPassword, pluginSecretKey } = credentials;
 
-  if (!url || !username || !applicationPassword) {
-    console.warn("[createWordPressApi] Incomplete credentials provided. Cannot create API client.");
+  if (!url) {
+    console.warn("[createWordPressApi] URL is missing. Cannot create API client.");
     return null;
   }
   
@@ -33,17 +32,21 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
   }
 
   try {
-    const authHeader = `Basic ${Buffer.from(`${username}:${applicationPassword}`).toString('base64')}`;
-    
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': authHeader,
     };
 
+    // If a plugin secret key is provided, use it as the primary auth method for our custom endpoints.
     if (pluginSecretKey) {
         headers['X-Autopress-Secret'] = pluginSecretKey;
     }
 
+    // Still include Basic Auth for standard WP REST API endpoints.
+    if (username && applicationPassword) {
+      const authHeader = `Basic ${Buffer.from(`${username}:${applicationPassword}`).toString('base64')}`;
+      headers['Authorization'] = authHeader;
+    }
+    
     const api = axios.create({
       baseURL: `${url}/wp-json/wp/v2`,
       headers: headers,
@@ -51,8 +54,8 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
     });
 
     let nonce = '';
-    // Only attempt to fetch a nonce if we don't have the secret key (fallback method)
-    if (!pluginSecretKey) {
+    // Nonce fetching is now a fallback/informational step, not a hard requirement for all our custom endpoints.
+    if (username && applicationPassword) {
         try {
             const nonceResponse = await api.get('/users/me', { params: { context: 'edit' } });
             nonce = nonceResponse.headers['x-wp-nonce'] || '';
@@ -65,7 +68,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
             const errorDetails = nonceError.response 
                 ? `Status: ${nonceError.response.status}. WordPress Message: ${JSON.stringify(nonceError.response.data?.message || nonceError.response.data)}`
                 : nonceError.message;
-            console.error(`[createWordPressApi] FAILED to fetch nonce. This is a critical authentication error. Details: ${errorDetails}`);
+            console.error(`[createWordPressApi] FAILED to fetch nonce. This can be due to incorrect credentials or a security plugin blocking the request. Details: ${errorDetails}`);
         }
     }
     
