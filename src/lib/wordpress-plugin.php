@@ -20,7 +20,9 @@ function autopress_ai_get_plugin_version() {
     return $plugin_data['Version'];
 }
 
-function autopress_ai_permission_check(WP_REST_Request $request) {
+function autopress_ai_permission_check() {
+    // This is the standard permission check for application passwords.
+    // It ensures that only authenticated requests from a user with editing capabilities can proceed.
     return current_user_can('edit_posts');
 }
 
@@ -45,7 +47,6 @@ function custom_api_status_check($request) {
         'woocommerce_active' => class_exists('WooCommerce'),
         'polylang_active' => function_exists('pll_get_post_language'),
         'front_page_id' => (int) get_option('page_on_front', 0),
-        'nonce' => wp_create_nonce('wp_rest')
     ], 200);
 }
 
@@ -70,6 +71,7 @@ function custom_api_get_polylang_languages() {
     }
     return new WP_REST_Response($formatted_languages, 200);
 }
+
 
 function custom_api_link_translations( $request ) { 
     if ( ! function_exists( 'pll_save_post_translations' ) ) { 
@@ -249,7 +251,15 @@ add_filter('rest_page_query', function($args, $request) { $lang = $request->get_
 add_filter('rest_product_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
 
 // Add filter for checking product image existence
-add_action('woocommerce_rest_product_query', function($args, $request) { $has_image = $request->get_param('has_image'); if (null === $has_image) { return $args; } $args['meta_query'][] = array( 'key' => '_thumbnail_id', 'compare' => ($has_image === '1' || $has_image === 'yes') ? 'EXISTS' : 'NOT EXISTS', ); return $args; }, 10, 2);
+add_action('woocommerce_rest_product_query', function($args, $request) { 
+    $has_image = $request->get_param('has_image');
+    if ($has_image !== null) {
+        $args['meta_query'][] = array(
+            'key' => '_thumbnail_id',
+            'compare' => ($has_image === '1' || $has_image === 'yes') ? 'EXISTS' : 'NOT EXISTS',
+        );
+    }
+    return $args;
+}, 10, 2);
 
 ?>
-    
