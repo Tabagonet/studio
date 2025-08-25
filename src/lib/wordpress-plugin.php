@@ -1,4 +1,3 @@
-
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -14,13 +13,67 @@ if (!defined('ABSPATH')) exit;
 class AutoPress_AI_Helper {
 
     public function __construct() {
-        // Use a high priority to ensure Polylang or other plugins are loaded first.
         add_action('plugins_loaded', [$this, 'initialize_plugin'], 100);
     }
 
     public function initialize_plugin() {
         add_action('rest_api_init', [$this, 'register_routes'], 100);
+        add_action('admin_menu', [$this, 'add_admin_menu']);
     }
+
+    public function add_admin_menu() {
+        add_menu_page(
+            'AutoPress AI',
+            'AutoPress AI',
+            'manage_options',
+            'autopress-ai-settings',
+            [$this, 'create_settings_page'],
+            'dashicons-superhero',
+            81
+        );
+    }
+
+    public function create_settings_page() {
+        // Check user capabilities
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+
+        // Handle form submission
+        if (isset($_POST['autopress_secret_key_nonce']) && wp_verify_nonce($_POST['autopress_secret_key_nonce'], 'autopress_save_secret_key')) {
+            $secret_key = sanitize_text_field($_POST['autopress_secret_key']);
+            update_option('autopress_ai_secret_key', $secret_key);
+            echo '<div class="notice notice-success is-dismissible"><p>Clave secreta guardada con éxito.</p></div>';
+        }
+        
+        $current_key = get_option('autopress_ai_secret_key', '');
+        ?>
+        <div class="wrap">
+            <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+            <p>Configuración para el plugin de ayuda de AutoPress AI.</p>
+            <form method="post" action="">
+                <?php wp_nonce_field('autopress_save_secret_key', 'autopress_secret_key_nonce'); ?>
+                <table class="form-table" role="presentation">
+                    <tbody>
+                        <tr>
+                            <th scope="row">
+                                <label for="autopress_secret_key">Clave Secreta del Plugin</label>
+                            </th>
+                            <td>
+                                <input type="password" id="autopress_secret_key" name="autopress_secret_key" value="<?php echo esc_attr($current_key); ?>" class="regular-text" />
+                                <p class="description">
+                                    Introduce aquí la misma clave secreta que has configurado en los Ajustes de Conexión de la aplicación AutoPress AI. Esta clave se usa como método de autenticación alternativo.
+                                </p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <?php submit_button('Guardar Clave Secreta'); ?>
+            </form>
+        </div>
+        <?php
+    }
+
 
     public function register_routes() {
         register_rest_route('custom/v1', '/status', [
@@ -82,20 +135,6 @@ class AutoPress_AI_Helper {
             'callback' => [$this, 'custom_api_update_product_images'],
             'permission_callback' => [$this, 'permission_check_v2']
         ]);
-
-        // Secret key management endpoint
-        register_rest_route('custom/v1', '/secret-key', [
-            'methods' => 'POST',
-            'callback' => [$this, 'handle_secret_key'],
-            'permission_callback' => function(WP_REST_Request $request) {
-                // Only allow admins to set the key via nonce auth
-                $nonce = $request->get_header('X-WP-Nonce');
-                if (!$nonce || !wp_verify_nonce($nonce, 'wp_rest') || !current_user_can('manage_options')) {
-                    return new WP_Error('auth_error', 'No tienes permiso para configurar la clave secreta.', ['status' => 403]);
-                }
-                return true;
-            }
-        ]);
     }
 
     public function permission_check_v2(WP_REST_Request $request) {
@@ -106,6 +145,8 @@ class AutoPress_AI_Helper {
             if ($saved_secret && hash_equals($saved_secret, $secret_key_header)) {
                 return true;
             }
+            // If secret key is provided but doesn't match, fail immediately for security.
+             return new WP_Error('invalid_secret_key', 'La clave secreta del plugin no es correcta.', ['status' => 403]);
         }
 
         // Priority 2: Fallback to the nonce check for backward compatibility
@@ -166,8 +207,6 @@ class AutoPress_AI_Helper {
     public function custom_api_update_product_images(WP_REST_Request $request) { $product_id = intval($request->get_param('product_id')); $mode = sanitize_text_field($request->get_param('mode')); $image_urls = $request->get_param('images'); if (!$product_id) { return new WP_Error('no_id', 'Falta el ID del producto', ['status' => 400]); } $product = wc_get_product($product_id); if (!$product) { return new WP_Error('not_found', 'Producto no encontrado', ['status' => 404]); } $current_ids = $product->get_gallery_image_ids(); if ($product->get_image_id()) { array_unshift($current_ids, $product->get_image_id()); } $new_ids = []; if (is_array($image_urls)) { foreach ($image_urls as $img) { if (is_numeric($img)) { $new_ids[] = intval($img); } elseif (filter_var($img, FILTER_VALIDATE_URL)) { $id = $this->sideload_image($img, $product_id); if (is_numeric($id)) $new_ids[] = $id; } } } $final_ids = []; if ($mode === 'replace') { $final_ids = $new_ids; } elseif ($mode === 'add') { $final_ids = array_unique(array_merge($current_ids, $new_ids)); } elseif ($mode === 'remove') { $final_ids = array_diff($current_ids, $new_ids); } elseif ($mode === 'clear') { $final_ids = []; } else { $final_ids = $new_ids; } $main_id = array_shift($final_ids); $product->set_image_id($main_id ?: 0); $product->set_gallery_image_ids($final_ids); $product->save(); return new WP_REST_Response(['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()], 200); }
     private function sideload_image($file_url, $post_id) { if (!function_exists('media_handle_sideload')) { require_once ABSPATH . 'wp-admin/includes/file.php'; require_once ABSPATH . 'wp-admin/includes/media.php'; require_once ABSPATH . 'wp-admin/includes/image.php'; } $tmp = download_url($file_url, 15); if (is_wp_error($tmp)) { error_log('[AUTOPRESS AI DEBUG] Sideload Error (download_url): ' . $tmp->get_error_message()); return $tmp; } $file_array = ['name' => basename(wp_parse_url($file_url, PHP_URL_PATH)), 'tmp_name' => $tmp]; $id = media_handle_sideload($file_array, $post_id); if (is_wp_error($id)) { @unlink($file_array['tmp_name']); error_log('[AUTOPRESS AI DEBUG] Sideload Error (media_handle_sideload): ' . $id->get_error_message()); } return $id; }
     public function custom_api_batch_update_status(WP_REST_Request $request) { $post_ids = $request->get_param('post_ids'); $status = $request->get_param('status'); if (empty($post_ids) || !is_array($post_ids) || !in_array($status, ['publish', 'draft', 'pending', 'private'])) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs y un estado válido.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('edit_post', $id)) { $post_data = ['ID' => $id, 'post_status' => $status]; $result = wp_update_post($post_data, true); if (is_wp_error($result)) { $results['failed'][] = ['id' => $id, 'reason' => $result->get_error_message()]; } else { $results['success'][] = $id; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
-    public function handle_secret_key(WP_REST_Request $request) { $secret_key = sanitize_text_field($request->get_param('secret_key')); update_option('autopress_ai_secret_key', $secret_key); return new WP_REST_Response(['success' => true, 'message' => 'Clave secreta guardada con éxito.'], 200); }
-
 }
 
 // Initialize the plugin
