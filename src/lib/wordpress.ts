@@ -22,7 +22,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
   let { url, username, applicationPassword } = credentials;
 
   if (!url || !username || !applicationPassword) {
-    console.warn("Incomplete WordPress credentials provided. Cannot create API client.");
+    console.error("[createWordPressApi] Incomplete credentials provided.");
     return null;
   }
   
@@ -31,12 +31,14 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
   }
 
   try {
-    const token = Buffer.from(`${username}:${applicationPassword}`, 'utf8').toString('base64');
-    
     const api = axios.create({
       baseURL: `${url}/wp-json/wp/v2`,
+      auth: {
+        username,
+        password: applicationPassword,
+      },
       headers: {
-        'Authorization': `Basic ${token}`,
+        'Content-Type': 'application/json',
       },
       timeout: 45000, 
     });
@@ -52,9 +54,8 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
              console.log('[createWordPressApi] Successfully fetched a new nonce from WordPress.');
         }
     } catch (nonceError: any) {
-        console.error('[createWordPressApi] Failed to fetch nonce from WordPress:', nonceError.message);
-        // We don't throw here, as some basic requests might not need a nonce,
-        // but dependent functions will fail if the nonce is empty.
+        console.error('[createWordPressApi] Failed to fetch nonce:', nonceError.message, nonceError.response?.data);
+        // Continue without nonce for now, but log the error. Some requests might not need it.
     }
     
     return { api, nonce };

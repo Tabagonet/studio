@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
 
         if (!adminAuth) {
             console.error('[API get-languages] Firebase Admin Auth not initialized.');
-            throw new Error('Firebase Admin Auth is not initialized.');
+            return NextResponse.json({ error: 'Firebase Admin Auth not initialized.' }, { status: 500 });
         }
 
         const decodedToken = await adminAuth.verifyIdToken(token);
@@ -25,59 +25,60 @@ export async function GET(req: NextRequest) {
 
         const { wpApi, nonce } = await getApiClientsForUser(uid);
         if (!wpApi || !wpApi.defaults.baseURL) {
-            console.warn('[API get-languages] WordPress API not configured or invalid baseURL.');
-            return NextResponse.json([]);
+            console.error('[API get-languages] WordPress API not configured or invalid baseURL.');
+            return NextResponse.json({ error: 'WordPress API not configured.' }, { status: 500 });
         }
 
         const siteUrl = wpApi.defaults.baseURL.replace('/wp-json/wp/v2', '');
         const statusEndpointUrl = `${siteUrl}/wp-json/custom/v1/status`;
         const languagesEndpointUrl = `${siteUrl}/wp-json/custom/v1/get-languages`;
 
-        // Step 1: Verify Polylang is active using the /status endpoint
+        // Verify Polylang status first
         let statusResponse;
         try {
             statusResponse = await wpApi.get(statusEndpointUrl);
             console.log('[API get-languages] Status response:', JSON.stringify(statusResponse.data));
         } catch (error: any) {
-            console.error('[API get-languages] Error fetching /status:', error.message);
-            // Don't throw, just return empty as the plugin might not be updated
-            return NextResponse.json([]);
+            console.error('[API get-languages] Error fetching /status:', error.message, error.response?.data);
+            return NextResponse.json({ error: 'Failed to fetch status endpoint.', details: error.response?.data?.message }, { status: 500 });
         }
         
         if (!statusResponse.data?.polylang_active) {
-            console.warn('[API get-languages] Polylang is not active according to /status endpoint. Returning empty array.');
-            return NextResponse.json([]);
+            console.warn('[API get-languages] Polylang is not active according to /status endpoint.');
+            return NextResponse.json([]); // Return empty array if not active
         }
 
-        // Step 2: If active, get the languages, now sending the nonce.
-        const response = await wpApi.get(languagesEndpointUrl, {
-            headers: {
-                'X-WP-Nonce': nonce || '', 
-            },
-        });
+        // Proceed to get languages
+        try {
+            const response = await wpApi.get(languagesEndpointUrl, {
+                headers: { 'X-WP-Nonce': nonce || '' },
+            });
+            console.log(`[API get-languages] Received status ${response.status} from WordPress languages endpoint.`);
 
-        console.log(`[API get-languages] Received status ${response.status} from WordPress languages endpoint.`);
-
-        if (response.data && Array.isArray(response.data)) {
-            if (response.data.every(item => typeof item === 'object' && item !== null && 'code' in item && 'name' in item)) {
-                console.log(`[API get-languages] Success. Returning ${response.data.length} languages.`);
-                return NextResponse.json(response.data);
+            if (response.data && Array.isArray(response.data)) {
+                if (response.data.every((item: any) => typeof item === 'object' && item !== null && 'code' in item && 'name' in item)) {
+                    console.log(`[API get-languages] Success. Returning ${response.data.length} languages.`);
+                    return NextResponse.json(response.data);
+                } else {
+                    console.error('[API get-languages] Invalid response format from get-languages:', JSON.stringify(response.data));
+                    return NextResponse.json({ error: 'Invalid response format from get-languages.' }, { status: 500 });
+                }
+            } else if (response.data?.code) { // Handle WP_Error
+                console.error(`[API get-languages] Plugin error: ${response.data.code} - ${response.data.message}`);
+                return NextResponse.json({ error: response.data.message }, { status: response.status || 500 });
             } else {
-                console.warn('[API get-languages] Invalid response format from get-languages:', JSON.stringify(response.data));
-                return NextResponse.json([]);
+                console.error('[API get-languages] Invalid or empty response:', JSON.stringify(response.data));
+                return NextResponse.json({ error: 'Invalid response from get-languages.' }, { status: 500 });
             }
-        } else if (response.data?.code) { // Handle WP_Error response
-            console.warn(`[API get-languages] Plugin returned a WP_Error: ${response.data.code} - ${response.data.message}`);
-            return NextResponse.json([]);
-        } else {
-            console.warn('[API get-languages] Invalid or empty response from get-languages:', JSON.stringify(response.data));
-            return NextResponse.json([]);
-        }
 
+        } catch (error: any) {
+            const errorMessage = error.response?.data?.message || 'Failed to fetch languages.';
+             console.error('[API get-languages] Error fetching languages:', errorMessage, error.response?.data);
+            return NextResponse.json({ error: errorMessage }, { status: error.response?.status || 500 });
+        }
+        
     } catch (error: any) {
-        const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-        console.error(`[API get-languages] CRITICAL ERROR fetching Polylang languages: ${errorMessage}`, error.response?.data || error);
-        // Return an empty array in case of any failure to prevent UI crashes
-        return NextResponse.json([]);
+        console.error('[API get-languages] Critical error in handler:', error.message);
+        return NextResponse.json({ error: error.message || 'Unknown error' }, { status: 500 });
     }
 }

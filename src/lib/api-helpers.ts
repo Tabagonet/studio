@@ -73,7 +73,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     consumerSecret: activeConnection.wooCommerceApiSecret,
   });
 
-  const { api: wpApi, nonce } = await createWordPressApi({
+  const wpApiResult = await createWordPressApi({
     url: activeConnection.wordpressApiUrl,
     username: activeConnection.wordpressUsername,
     applicationPassword: activeConnection.wordpressApplicationPassword,
@@ -84,7 +84,15 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     accessToken: activeConnection.shopifyApiPassword,
   });
 
-  return { wooApi, wpApi, shopifyApi, nonce, activeConnectionKey, settings: settingsSource, prompts: finalPrompts };
+  return { 
+    wooApi, 
+    wpApi: wpApiResult?.api || null, 
+    nonce: wpApiResult?.nonce || '',
+    shopifyApi, 
+    activeConnectionKey, 
+    settings: settingsSource, 
+    prompts: finalPrompts 
+  };
 }
 
 export async function getPartnerCredentials(): Promise<PartnerAppConnectionData> {
