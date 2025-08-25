@@ -14,11 +14,11 @@ import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { auth } from '@/lib/firebase';
-import type { ProductData, ProductPhoto, ProductVariation } from '@/lib/types';
+import type { ProductData, ProductPhoto, ProductVariation, Language } from '@/lib/types';
+import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Progress } from '@/components/ui/progress';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { ALL_LANGUAGES } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 import { extractProductNameAndAttributesFromFilename } from '@/lib/utils';
 
@@ -90,6 +90,7 @@ export default function BatchProcessPage() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isBatchProcessing, setIsBatchProcessing] = useState(false);
   const [saveSkuInWoo, setSaveSkuInWoo] = useState(true);
+  const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
   const { toast } = useToast();
 
   const onImagesDrop = useCallback((acceptedFiles: File[]) => {
@@ -194,6 +195,27 @@ export default function BatchProcessPage() {
         }
     });
   }, [csvFile, toast]);
+
+  // Effect to get available languages
+  useEffect(() => {
+     const fetchLanguages = async (token: string) => {
+        try {
+            const langResponse = await fetch('/api/wordpress/get-languages', { headers: { 'Authorization': `Bearer ${token}` } });
+             if (langResponse.ok) {
+                const langData = await langResponse.json();
+                setAvailableLanguages(langData);
+            }
+        } catch (e) {
+            console.warn("Could not fetch languages for batch processor.", e);
+        }
+    };
+     const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        user.getIdToken().then(fetchLanguages);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Effect to combine and verify image and CSV data
   useEffect(() => {
@@ -353,8 +375,9 @@ export default function BatchProcessPage() {
         try {
             const token = await user.getIdToken();
             const allTranslations: { [key: string]: number } = {};
-            const sourceLang = 'Spanish'; // Assuming source is always Spanish for batch
-            let createdPostUrls: { url: string; title: string }[] = [];
+            
+            const sourceLangName = 'Spanish'; // Hardcoded source language for simplicity in batch mode
+            const sourceLangSlug = availableLanguages.find(l => l.name === sourceLangName)?.code || 'es';
 
             // 1. AI Content Generation
             updateProductProcessingStatus(product.id, 'processing', 'Generando contenido con IA...', 5);
@@ -367,7 +390,7 @@ export default function BatchProcessPage() {
                 productName: aiContextName,
                 productType: product.csvData.tipo || 'simple',
                 tags: product.csvData.etiquetas ? product.csvData.etiquetas.split(',').map((t: string) => t.trim()) : [],
-                language: sourceLang,
+                language: sourceLangName,
             };
             const aiResponse = await fetch('/api/generate-description', {
                 method: 'POST',
@@ -436,7 +459,6 @@ export default function BatchProcessPage() {
 
             // 4. Create Original Product
             updateProductProcessingStatus(product.id, 'processing', 'Creando producto original...', 50);
-            const sourceLangSlug = ALL_LANGUAGES.find(l => l.code === sourceLang)?.slug || 'es';
             const originalProductData: ProductData = {
                 name: aiContent.name, // Use AI-generated name
                 status: 'draft',
@@ -452,7 +474,7 @@ export default function BatchProcessPage() {
                 },
                 shipping_class: product.csvData.clase_de_envio || '',
                 shortDescription: aiContent.shortDescription, longDescription: aiContent.longDescription, tags: aiContent.tags,
-                attributes: [], photos: [], language: sourceLang, category: null, variations: [], groupedProductIds: [],
+                attributes: [], photos: [], language: 'Spanish', category: null, variations: [], groupedProductIds: [],
             };
 
             const formData = new FormData();
