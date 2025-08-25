@@ -53,15 +53,13 @@ function custom_api_get_polylang_languages() {
     if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
         return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]);
     }
-    
     $language_slugs = pll_languages_list();
     if (empty($language_slugs)) {
         return new WP_REST_Response([], 200);
     }
-    
     $formatted_languages = [];
     foreach ($language_slugs as $slug) {
-        $details = pll_get_language($slug); // Fetch full details object
+        $details = pll_get_language($slug);
         if ($details) {
             $formatted_languages[] = [
                 'code' => $details->slug,
@@ -70,7 +68,6 @@ function custom_api_get_polylang_languages() {
             ];
         }
     }
-    
     return new WP_REST_Response($formatted_languages, 200);
 }
 
@@ -214,8 +211,24 @@ function custom_api_update_product_images(WP_REST_Request $request) {
 }
 
 
-// Function to register all endpoints
+// Unify all registrations into a single function hooked to rest_api_init
 function autopress_ai_register_rest_endpoints() {
+    // Register meta fields
+    $post_types = get_post_types(['public' => true], 'names');
+    foreach ($post_types as $type) {
+        if (function_exists('pll_get_post_language')) {
+            register_rest_field($type, 'lang', ['get_callback' => function ($p) { return pll_get_post_language($p['id'], 'slug'); }, 'schema' => null]);
+            register_rest_field($type, 'translations', ['get_callback' => function ($p) { return pll_get_post_translations($p['id']); }, 'schema' => null]);
+        }
+    }
+    $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
+    foreach ($post_types as $post_type) {
+        foreach ($yoast_meta_keys as $meta_key) {
+            register_post_meta($post_type, $meta_key, ['show_in_rest' => true, 'single' => true, 'type' => 'string', 'auth_callback' => 'autopress_ai_permission_check']);
+        }
+    }
+
+    // Register custom routes
     register_rest_route('custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => '__return_true']);
     register_rest_route('custom/v1', '/get-languages', ['methods' => 'GET', 'callback' => 'custom_api_get_polylang_languages', 'permission_callback' => 'autopress_ai_permission_check']);
     register_rest_route('custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => 'custom_api_link_translations', 'permission_callback' => 'autopress_ai_permission_check']);
@@ -227,28 +240,8 @@ function autopress_ai_register_rest_endpoints() {
     register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => 'autopress_ai_permission_check']);
 }
 
-// Function to register meta fields and language filters
-function autopress_ai_register_meta_and_filters() {
-    // Register lang and translations fields for all public post types
-    $post_types = get_post_types(['public' => true], 'names');
-    foreach ($post_types as $type) {
-        if (function_exists('pll_get_post_language')) {
-            register_rest_field($type, 'lang', ['get_callback' => function ($p) { return pll_get_post_language($p['id'], 'slug'); }, 'schema' => null]);
-            register_rest_field($type, 'translations', ['get_callback' => function ($p) { return pll_get_post_translations($p['id']); }, 'schema' => null]);
-        }
-    }
-     // Register Yoast meta fields after init
-    $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
-    foreach ($post_types as $post_type) {
-        foreach ($yoast_meta_keys as $meta_key) {
-            register_post_meta($post_type, $meta_key, ['show_in_rest' => true, 'single' => true, 'type' => 'string', 'auth_callback' => 'autopress_ai_permission_check']);
-        }
-    }
-}
-
-// === HOOKS AND REGISTRATIONS ===
-add_action('rest_api_init', 'autopress_ai_register_meta_and_filters');
-add_action('plugins_loaded', 'autopress_ai_register_rest_endpoints');
+// Hook the main registration function to the correct action
+add_action('rest_api_init', 'autopress_ai_register_rest_endpoints');
 
 // Add filters for Polylang language parameter
 add_filter('rest_post_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
@@ -257,4 +250,6 @@ add_filter('rest_product_query', function($args, $request) { $lang = $request->g
 
 // Add filter for checking product image existence
 add_action('woocommerce_rest_product_query', function($args, $request) { $has_image = $request->get_param('has_image'); if (null === $has_image) { return $args; } $args['meta_query'][] = array( 'key' => '_thumbnail_id', 'compare' => ($has_image === '1' || $has_image === 'yes') ? 'EXISTS' : 'NOT EXISTS', ); return $args; }, 10, 2);
+
 ?>
+    
