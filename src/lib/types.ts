@@ -126,7 +126,7 @@ export interface BlogPostData {
   categoryPath?: string;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
-  sourceLanguage: string; // Language code, e.g. 'es'
+  sourceLanguage: string; // Language name, e.g., "Spanish"
   targetLanguages: string[]; // Array of language names
   author: WordPressUser | null;
   publishDate: Date | null;
@@ -399,7 +399,6 @@ export interface Company {
   };
   aiUsageCount?: number;
   oneTimeCredits?: OneTimeCredit[];
-  prompts?: Record<string, string>;
   connections?: any;
 }
 
