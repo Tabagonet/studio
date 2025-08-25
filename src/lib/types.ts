@@ -113,7 +113,6 @@ export interface WordPressUser {
 export interface Language {
   code: string;
   name: string;
-  flag: string;
 }
 
 export interface BlogPostData {
@@ -184,7 +183,7 @@ export interface ProductData {
     height: string;
   };
   shipping_class: string;
-  language: string; // Now holds the language *code* e.g., 'es'
+  language: string;
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];
   source?: 'wizard' | 'batch';
