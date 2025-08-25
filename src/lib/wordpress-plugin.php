@@ -11,41 +11,102 @@ Requires PHP: 7.4
 if (!defined('ABSPATH')) exit;
 
 class AutoPress_AI_Helper {
-
     public function __construct() {
-        error_log('[AUTOPRESS AI DEBUG] AutoPress_AI_Helper constructor called.');
+        // Registrar meta campos de Yoast y endpoints en init con prioridad alta
+        add_action('init', [$this, 'register_yoast_meta'], 20);
+        // Registrar endpoints en rest_api_init
         add_action('rest_api_init', [$this, 'register_routes']);
+    }
+
+    public function register_yoast_meta() {
+        error_log('[AUTOPRESS AI DEBUG] Registering Yoast meta fields...');
+        $post_types = get_post_types(['public' => true], 'names');
+        $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
+        foreach ($post_types as $post_type) {
+            foreach ($yoast_meta_keys as $meta_key) {
+                register_post_meta($post_type, $meta_key, [
+                    'show_in_rest' => true,
+                    'single' => true,
+                    'type' => 'string',
+                    'auth_callback' => [$this, 'permission_check']
+                ]);
+            }
+        }
+        // Registrar campos de Polylang
+        if (function_exists('pll_get_post_language')) {
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions available, registering fields...');
+            foreach ($post_types as $type) {
+                register_rest_field($type, 'lang', [
+                    'get_callback' => function ($p) { return pll_get_post_language($p['id'], 'slug'); },
+                    'schema' => null
+                ]);
+                register_rest_field($type, 'translations', [
+                    'get_callback' => function ($p) { return pll_get_post_translations($p['id']); },
+                    'schema' => null
+                ]);
+            }
+        } else {
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions not available during init.');
+        }
     }
 
     public function register_routes() {
         error_log('[AUTOPRESS AI DEBUG] rest_api_init hook fired. Registering endpoints...');
 
-        // Endpoint para verificar estado del plugin
+        // Registrar rutas
         register_rest_route('custom/v1', '/status', [
             'methods' => 'GET',
             'callback' => [$this, 'status_check'],
             'permission_callback' => '__return_true'
         ]);
-
-        // Endpoint para obtener idiomas de Polylang
         register_rest_route('custom/v1', '/get-languages', [
             'methods' => 'GET',
             'callback' => [$this, 'custom_api_get_polylang_languages'],
             'permission_callback' => [$this, 'permission_check']
         ]);
-        
-        register_rest_route('custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => [$this, 'custom_api_link_translations'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => [$this, 'custom_api_trash_single_post'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => [$this, 'custom_api_batch_trash_posts'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', ['methods' => 'POST', 'callback' => [$this, 'custom_api_regenerate_elementor_css'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom/v1', '/menus', ['methods' => 'GET', 'callback' => [$this, 'custom_api_get_all_menus'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => [$this, 'custom_api_clone_menu'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => [$this, 'custom_api_update_product_images'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom/v1', '/batch-update-status', ['methods' => 'POST', 'callback' => [$this, 'custom_api_batch_update_status'], 'permission_callback' => [$this, 'permission_check']]);
-
+        register_rest_route('custom/v1', '/link-translations', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_link_translations'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_trash_single_post'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        register_rest_route('custom/v1', '/batch-trash-posts', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_batch_trash_posts'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_regenerate_elementor_css'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        register_rest_route('custom/v1', '/menus', [
+            'methods' => 'GET',
+            'callback' => [$this, 'custom_api_get_all_menus'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        register_rest_route('custom/v1', '/clone-menu', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_clone_menu'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        register_rest_route('custom-api/v1', '/update-product-images', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_update_product_images'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        register_rest_route('custom/v1', '/batch-update-status', [
+            'methods' => 'POST',
+            'callback' => [$this, 'custom_api_batch_update_status'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
         error_log('[AUTOPRESS AI DEBUG] All endpoints registered.');
     }
-    
+
     public function custom_api_batch_update_status(WP_REST_Request $request) {
         $post_ids = $request->get_param('post_ids');
         $status = $request->get_param('status');
@@ -71,7 +132,6 @@ class AutoPress_AI_Helper {
         }
         return new WP_REST_Response(['success' => true, 'data' => $results], 200);
     }
-
 
     public function permission_check() {
         return current_user_can('edit_posts');
@@ -99,18 +159,16 @@ class AutoPress_AI_Helper {
     public function custom_api_get_polylang_languages() {
         error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit.');
         
-        include_once( ABSPATH . 'wp-admin/includes/plugin.php' );
-        $is_polylang_active = is_plugin_active('polylang/polylang.php');
-        error_log('[AUTOPRESS AI DEBUG] Result of is_plugin_active("polylang/polylang.php"): ' . ($is_polylang_active ? 'true' : 'false'));
-
-        $pll_list_exists = function_exists('pll_languages_list');
-        $pll_get_exists = function_exists('pll_get_language');
-        error_log('[AUTOPRESS AI DEBUG] Result of function_exists("pll_languages_list"): ' . ($pll_list_exists ? 'true' : 'false'));
-        error_log('[AUTOPRESS AI DEBUG] Result of function_exists("pll_get_language"): ' . ($pll_get_exists ? 'true' : 'false'));
-        
-        if (!$pll_list_exists || !$pll_get_exists) {
-            error_log('[AUTOPRESS AI DEBUG] One or more Polylang functions do not exist. Returning error.');
-            return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles en el hook rest_api_init.', ['status' => 501]);
+        if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions not available, attempting to load Polylang...');
+            if (function_exists('PLL')) {
+                error_log('[AUTOPRESS AI DEBUG] Attempting to initialize Polylang manually...');
+                PLL()->init();
+            }
+            if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
+                 error_log('[AUTOPRESS AI DEBUG] Polylang still not active after init attempt.');
+                 return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles.', ['status' => 501]);
+            }
         }
 
         $language_slugs = pll_languages_list();
@@ -284,7 +342,7 @@ class AutoPress_AI_Helper {
 }
 
 // Iniciar el plugin
-add_action('init', function() {
+add_action('plugins_loaded', function() {
     new AutoPress_AI_Helper();
 });
 

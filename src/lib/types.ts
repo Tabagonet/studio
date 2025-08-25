@@ -125,8 +125,8 @@ export interface BlogPostData {
   categoryPath?: string;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
-  sourceLanguage: string; // Language code, e.g., 'es', 'en'
-  targetLanguages: string[]; // Array of language codes
+  sourceLanguage: string;
+  targetLanguages: string[];
   author: WordPressUser | null;
   publishDate: Date | null;
 }
@@ -182,7 +182,7 @@ export interface ProductData {
     height: string;
   };
   shipping_class: string;
-  language: string; // Language code, e.g., 'es', 'en'
+  language: string;
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];
   source?: 'wizard' | 'batch';
@@ -509,3 +509,5 @@ export interface PlanUsage {
     totalAvailable: number;
   };
 }
+
+    

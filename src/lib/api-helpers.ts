@@ -42,7 +42,6 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
 
   const userDoc = await adminDb.collection('users').doc(uid).get();
   if (!userDoc.exists) throw new Error('User not found. Cannot determine settings.');
-  const userData = userDoc.data()!;
   
   const [entityRef] = await getEntityRef(uid);
   const settingsDoc = await entityRef.get();
@@ -361,7 +360,7 @@ export async function enrichImageWithMediaData(image: any, wpApi: AxiosInstance)
   }
 
   try {
-    const { data } = await wpApi.get(`/media/${image.mediaId}`, { params: { context: 'view', _fields: 'alt_text,media_details' }});
+    const { data } = await wpApi.get(`/media/${image.mediaId}`, { params: { context: 'view', _fields: 'id,alt_text,source_url,media_details' }});
     // Return a new object with the original data plus the enriched fields.
     // This prioritizes existing data (like alt from scraper) but adds missing info.
     return {
@@ -752,3 +751,5 @@ export function findImageUrlsInElementor(data: any): { url: string; id: number |
     // Return a unique set of images based on URL
     return Array.from(new Map(images.map(img => [img.url, img])).values());
 }
+
+    
