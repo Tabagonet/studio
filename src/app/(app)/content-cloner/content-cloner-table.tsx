@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getColumns } from "./columns"; 
-import type { ContentItem } from "@/lib/types";
+import type { ContentItem, Language } from "@/lib/types";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, ChevronDown, Copy, Languages, List } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -40,15 +40,6 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 type CloningStatus = 'pending' | 'cloning' | 'translating' | 'updating' | 'success' | 'failed' | 'skipped';
 type CloningProgress = Record<string, { title: string; status: CloningStatus; message: string; progress: number }>;
 
-const LANG_CODE_MAP: { [key: string]: string } = {
-    'es': 'Español', 'en': 'Inglés', 'fr': 'Francés',
-    'de': 'Alemán', 'pt': 'Portugués', 'it': 'Italiano',
-};
-
-interface Menu {
-  id: number;
-  name: string;
-}
 
 const CloningProgressDialog = ({ open, progressData, onDone }: { open: boolean, progressData: CloningProgress, onDone: () => void }) => {
     const isDone = React.useMemo(() => 
@@ -121,9 +112,12 @@ export function ContentClonerTable() {
   const [pagination, setPagination] = React.useState({ pageIndex: 0, pageSize: 10 });
   const [totalPages, setTotalPages] = React.useState(1);
 
-  const [menus, setMenus] = React.useState<Menu[]>([]);
+  const [menus, setMenus] = React.useState<{id: number, name: string}[]>([]);
   const [isLoadingMenus, setIsLoadingMenus] = React.useState(true);
   const [selectedMenu, setSelectedMenu] = React.useState('all');
+  
+  const [availableLanguages, setAvailableLanguages] = React.useState<Language[]>([]);
+  const [isLoadingLanguages, setIsLoadingLanguages] = React.useState(true);
 
   const [isCloneDialogOpen, setIsCloneDialogOpen] = React.useState(false);
   const [targetLang, setTargetLang] = React.useState<string>("");
@@ -132,14 +126,6 @@ export function ContentClonerTable() {
   const [cloningProgress, setCloningProgress] = React.useState<CloningProgress>({});
 
   const { toast } = useToast();
-  
-  const availableTargetLanguages = React.useMemo(() => {
-    const langSet = new Set<string>();
-    data.forEach(item => {
-        if (item.lang && item.lang !== 'default') langSet.add(item.lang);
-    });
-    return Array.from(langSet).map(code => ({ code, name: LANG_CODE_MAP[code] || code.toUpperCase() }));
-  }, [data]);
 
   const fetchData = React.useCallback(async (pageIndex: number, pageSize: number, menuId: string) => {
     setIsLoading(true);
@@ -179,19 +165,25 @@ export function ContentClonerTable() {
     }
   }, []);
 
-  const fetchMenus = React.useCallback(async (token: string) => {
+  const fetchAuxiliaryData = React.useCallback(async (token: string) => {
     setIsLoadingMenus(true);
+    setIsLoadingLanguages(true);
     try {
-      const response = await fetch('/api/wordpress/menu', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (!response.ok) throw new Error("No se pudieron cargar los menús");
-      setMenus(await response.json());
+      const [menusResponse, langsResponse] = await Promise.all([
+        fetch('/api/wordpress/menu', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('/api/wordpress/get-languages', { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      
+      if (menusResponse.ok) setMenus(await menusResponse.json()); else setMenus([]);
+      if (langsResponse.ok) setAvailableLanguages(await langsResponse.json()); else setAvailableLanguages([]);
+      
     } catch (e) {
-      setMenus([]); // Set to empty array on error
-      console.error("Error fetching menus:", e);
+      console.error("Error fetching auxiliary data (menus/langs):", e);
+      setMenus([]);
+      setAvailableLanguages([]);
     } finally {
       setIsLoadingMenus(false);
+      setIsLoadingLanguages(false);
     }
   }, []);
 
@@ -199,25 +191,21 @@ export function ContentClonerTable() {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         fetchData(pagination.pageIndex, pagination.pageSize, selectedMenu);
-        user.getIdToken().then(fetchMenus);
+        user.getIdToken().then(fetchAuxiliaryData);
       }
     });
-     window.addEventListener('connections-updated', () => { 
+     const handleConnectionsUpdate = () => { 
         if (auth.currentUser) {
             fetchData(pagination.pageIndex, pagination.pageSize, selectedMenu);
-            auth.currentUser.getIdToken().then(fetchMenus);
+            auth.currentUser.getIdToken().then(fetchAuxiliaryData);
         }
-     });
+     };
+     window.addEventListener('connections-updated', handleConnectionsUpdate);
     return () => {
       unsubscribe();
-      window.removeEventListener('connections-updated', () => { 
-          if (auth.currentUser) {
-              fetchData(pagination.pageIndex, pagination.pageSize, selectedMenu);
-              auth.currentUser.getIdToken().then(fetchMenus);
-          }
-      });
+      window.removeEventListener('connections-updated', handleConnectionsUpdate);
     };
-  }, [fetchData, fetchMenus, pagination, selectedMenu]);
+  }, [fetchData, fetchAuxiliaryData, pagination, selectedMenu]);
 
   const handleBatchClone = async () => {
     setIsCloning(true);
@@ -340,9 +328,10 @@ export function ContentClonerTable() {
                            <SelectValue placeholder="Selecciona un idioma..." />
                         </SelectTrigger>
                         <SelectContent>
-                             {availableTargetLanguages.map(lang => (
+                             {availableLanguages.map(lang => (
                                 <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                             ))}
+                             {availableLanguages.length === 0 && <SelectItem value="none" disabled>No hay idiomas disponibles</SelectItem>}
                         </SelectContent>
                     </Select>
                 </div>
@@ -404,6 +393,7 @@ export function ContentClonerTable() {
                  <Select
                     value={(table.getColumn('lang')?.getFilterValue() as string) ?? 'all'}
                     onValueChange={(value) => table.getColumn('lang')?.setFilterValue(value === 'all' ? undefined : value)}
+                    disabled={isLoadingLanguages}
                 >
                     <SelectTrigger className="w-full sm:w-auto sm:min-w-[180px] flex-grow">
                          <Languages className="mr-2 h-4 w-4" />
@@ -411,7 +401,7 @@ export function ContentClonerTable() {
                     </SelectTrigger>
                     <SelectContent>
                         <SelectItem value="all">Todos los Idiomas</SelectItem>
-                         {availableTargetLanguages.map(lang => (
+                         {availableLanguages.map(lang => (
                             <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
                         ))}
                     </SelectContent>

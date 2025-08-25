@@ -1,3 +1,4 @@
+
 // src/app/(app)/menu-cloner/page.tsx
 
 "use client";
@@ -47,14 +48,19 @@ export default function MenuClonerPage() {
                 fetch('/api/wordpress/get-languages', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
             
-            if (!menusResponse.ok) throw new Error((await menusResponse.json()).error || 'No se pudieron cargar los menús.');
-            if (!langsResponse.ok) console.warn('Could not load Polylang languages.');
+            if (menusResponse.ok) {
+                setMenus(await menusResponse.json());
+            } else {
+                setMenus([]);
+                console.warn('Could not load menus.');
+            }
             
-            const menusData = await menusResponse.json();
-            const langsData = await langsResponse.json();
-            
-            setMenus(menusData);
-            setLanguages(langsData || []);
+            if (langsResponse.ok) {
+                setLanguages(await langsResponse.json());
+            } else {
+                setLanguages([]);
+                console.warn('Could not load languages.');
+            }
 
         } catch (err: any) {
             setError(err.message);
@@ -67,10 +73,11 @@ export default function MenuClonerPage() {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
           if (user) fetchData();
         });
-         window.addEventListener('connections-updated', fetchData);
+         const handleConnectionsUpdate = () => { if (auth.currentUser) fetchData(); };
+         window.addEventListener('connections-updated', handleConnectionsUpdate);
         return () => {
           unsubscribe();
-          window.removeEventListener('connections-updated', fetchData);
+          window.removeEventListener('connections-updated', handleConnectionsUpdate);
         };
     }, [fetchData]);
 

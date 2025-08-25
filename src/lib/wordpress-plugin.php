@@ -1,3 +1,4 @@
+
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -258,4 +259,3 @@ add_action('rest_api_init', function () {
     register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => 'autopress_ai_permission_check' ]);
 });
 ?>
-    
