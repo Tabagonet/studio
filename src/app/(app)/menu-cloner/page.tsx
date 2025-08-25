@@ -12,6 +12,8 @@ import { Loader2, Copy, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { auth, onAuthStateChanged } from '@/lib/firebase';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import type { Language } from '@/lib/types';
+
 
 interface Menu {
   id: number;
@@ -19,18 +21,9 @@ interface Menu {
   slug: string;
 }
 
-const LANG_CODE_MAP: { [key: string]: string } = {
-    'es': 'Español',
-    'en': 'Inglés',
-    'fr': 'Francés',
-    'de': 'Alemán',
-    'pt': 'Portugués',
-    'it': 'Italiano',
-};
-
 export default function MenuClonerPage() {
     const [menus, setMenus] = useState<Menu[]>([]);
-    const [languages, setLanguages] = useState<{ code: string, name: string }[]>([]);
+    const [languages, setLanguages] = useState<Language[]>([]);
     const [selectedMenu, setSelectedMenu] = useState<string>('');
     const [targetLang, setTargetLang] = useState<string>('');
     const [isLoading, setIsLoading] = useState(true);
@@ -50,24 +43,19 @@ export default function MenuClonerPage() {
 
         try {
             const token = await user.getIdToken();
-            const [menusResponse, contentResponse] = await Promise.all([
+            const [menusResponse, langsResponse] = await Promise.all([
                 fetch('/api/wordpress/menu', { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch('/api/wordpress/content-list', { headers: { 'Authorization': `Bearer ${token}` } })
+                fetch('/api/wordpress/get-languages', { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
             
             if (!menusResponse.ok) throw new Error((await menusResponse.json()).error || 'No se pudieron cargar los menús.');
-            if (!contentResponse.ok) throw new Error((await contentResponse.json()).error || 'No se pudo cargar la lista de contenido para detectar idiomas.');
+            if (!langsResponse.ok) console.warn('Could not load Polylang languages.');
             
             const menusData = await menusResponse.json();
-            const contentData = await contentResponse.json();
+            const langsData = await langsResponse.json();
             
             setMenus(menusData);
-
-            const langSet = new Set<string>();
-            contentData.content.forEach((item: any) => {
-                if (item.lang && item.lang !== 'default') langSet.add(item.lang);
-            });
-            setLanguages(Array.from(langSet).map(code => ({ code, name: LANG_CODE_MAP[code] || code.toUpperCase() })));
+            setLanguages(langsData || []);
 
         } catch (err: any) {
             setError(err.message);
