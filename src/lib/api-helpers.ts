@@ -1,6 +1,5 @@
-
 // src/lib/api-helpers.ts
-import { adminDb, admin } from '@/lib/firebase-admin';
+import { admin } from '@/lib/firebase-admin';
 import type * as admin_types from 'firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
@@ -36,9 +35,10 @@ interface ApiClients {
 }
 
 export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
-  if (!adminDb) {
+  if (!admin.firestore) {
     throw new Error('Firestore admin is not initialized.');
   }
+  const adminDb = admin.firestore();
 
   const userDoc = await adminDb.collection('users').doc(uid).get();
   if (!userDoc.exists) throw new Error('User not found. Cannot determine settings.');
@@ -95,6 +95,7 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
  * @throws If credentials are not configured in the global settings.
  */
 export async function getPartnerCredentials(): Promise<PartnerAppConnectionData> {
+    const adminDb = admin.firestore();
     if (!adminDb) {
         throw new Error("Firestore not configured on server");
     }
@@ -513,7 +514,7 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
             }
         });
         
-        const foundTerm = searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId);
+        const foundTerm = searchResult && searchResult.length > 0 ? searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId) : null;
 
         if (foundTerm) {
             console.log(`[API Helper] Found existing term for "${part}" with ID: ${foundTerm.id}`);
@@ -604,6 +605,7 @@ export async function getPromptForConnection(
 ): Promise<string> {
     const defaultPrompt = PROMPT_DEFAULTS[promptKey as keyof typeof PROMPT_DEFAULTS]?.default;
     if (!defaultPrompt) throw new Error(`Default prompt for key "${promptKey}" not found.`);
+    const adminDb = admin.firestore();
     if (!adminDb) return defaultPrompt;
 
     try {
@@ -642,6 +644,7 @@ export async function getPromptForConnection(
 }
 
 export async function getEntityRef(uid: string): Promise<[admin_types.firestore.DocumentReference, 'user' | 'company', string]> {
+    const adminDb = admin.firestore();
     if (!adminDb) throw new Error("Firestore not configured.");
 
     const userDoc = await adminDb.collection('users').doc(uid).get();

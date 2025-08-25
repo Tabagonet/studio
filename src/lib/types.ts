@@ -110,6 +110,12 @@ export interface WordPressUser {
     avatar_urls: { [key: string]: string };
 }
 
+export interface Language {
+  code: string;
+  name: string;
+  flag: string;
+}
+
 export interface BlogPostData {
   title: string;
   content: string;
@@ -178,7 +184,7 @@ export interface ProductData {
     height: string;
   };
   shipping_class: string;
-  language: 'Spanish' | 'English' | 'French' | 'German' | 'Portuguese';
+  language: string;
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];
   source?: 'wizard' | 'batch';
