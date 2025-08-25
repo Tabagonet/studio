@@ -13,7 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import Image from 'next/image';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { auth } from '@/lib/firebase';
+import { auth, onAuthStateChanged } from '@/lib/firebase';
 import type { ProductData, ProductPhoto, ProductVariation, Language } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Progress } from '@/components/ui/progress';
@@ -733,5 +733,3 @@ export default function BatchProcessPage() {
     </div>
   );
 }
-
-    

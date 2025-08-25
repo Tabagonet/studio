@@ -1,5 +1,5 @@
 // src/lib/api-helpers.ts
-import { admin } from '@/lib/firebase-admin';
+import { admin, adminDb } from '@/lib/firebase-admin';
 import type * as admin_types from 'firebase-admin';
 import { createWooCommerceApi } from '@/lib/woocommerce';
 import { createWordPressApi } from '@/lib/wordpress';
@@ -509,12 +509,14 @@ export async function findOrCreateWpCategoryByPath(pathString: string, wpApi: Ax
             params: {
                 search: part,
                 parent: parentId,
-                per_page: 1,
+                per_page: 100, // Fetch more results to be safe with non-exact search
                 hide_empty: false,
             }
         });
         
-        const foundTerm = searchResult && searchResult.length > 0 ? searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId) : null;
+        const foundTerm = Array.isArray(searchResult) 
+            ? searchResult.find((term: any) => term.name.toLowerCase() === part.toLowerCase() && term.parent === parentId) 
+            : null;
 
         if (foundTerm) {
             console.log(`[API Helper] Found existing term for "${part}" with ID: ${foundTerm.id}`);
@@ -548,7 +550,11 @@ export async function findOrCreateTags(tagNames: string[], wpApi: AxiosInstance)
   for (const name of tagNames) {
     try {
       const searchResponse = await wpApi.get('/tags', { params: { search: name, per_page: 1 } });
-      const existingTag = searchResponse.data.find((tag: any) => tag.name.toLowerCase() === name.toLowerCase());
+      const searchData = searchResponse.data;
+      
+      const existingTag = Array.isArray(searchData) 
+        ? searchData.find((tag: any) => tag.name.toLowerCase() === name.toLowerCase())
+        : null;
 
       if (existingTag) {
         console.log(`[API Helper] Found existing tag "${name}" with ID: ${existingTag.id}`);
