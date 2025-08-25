@@ -23,8 +23,7 @@ export async function GET(req: NextRequest) {
     
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
-      // If no URL, we can't proceed.
-      return NextResponse.json([]);
+      throw new Error("Could not determine base site URL from WordPress API configuration.");
     }
     const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/get-languages`;
 

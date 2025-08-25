@@ -67,7 +67,7 @@ function custom_api_get_polylang_languages() {
 
     if (!$pll_list_exists || !$pll_get_exists) {
         error_log('[AUTOPRESS AI DEBUG] One or more Polylang functions do not exist. Returning error.');
-        return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]);
+        return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles en el hook rest_api_init.', ['status' => 501]);
     }
     
     $language_slugs = pll_languages_list();
