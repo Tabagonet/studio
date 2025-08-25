@@ -77,17 +77,19 @@ class AutoPress_AI_Helper {
 
     public function permission_check(WP_REST_Request $request) {
         $nonce = $request->get_header('X-WP-Nonce');
-        $user_can = current_user_can('edit_posts');
-        error_log('[AUTOPRESS AI DEBUG] Permission check - Nonce: ' . ($nonce ? $nonce : 'missing') . ', User can edit_posts: ' . ($user_can ? 'true' : 'false'));
         if (!$nonce) {
+            error_log('[AUTOPRESS AI DEBUG] Permission check failed: Nonce header missing.');
             return new WP_Error('no_nonce', 'Nonce header missing.', ['status' => 401]);
         }
         if (!wp_verify_nonce($nonce, 'wp_rest')) {
+            error_log('[AUTOPRESS AI DEBUG] Permission check failed: Invalid nonce provided.');
             return new WP_Error('invalid_nonce', 'Invalid or expired nonce.', ['status' => 403]);
         }
-        if (!$user_can) {
+        if (!current_user_can('edit_posts')) {
+             error_log('[AUTOPRESS AI DEBUG] Permission check failed: User lacks edit_posts capability.');
             return new WP_Error('insufficient_permissions', 'User lacks edit_posts capability.', ['status' => 403]);
         }
+        error_log('[AUTOPRESS AI DEBUG] Permission check successful.');
         return true;
     }
 
@@ -136,7 +138,7 @@ class AutoPress_AI_Helper {
         }
 
         if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
-            error_log('[AUTOPRESS AI DEBUG] Polylang functions still not available after init attempt.');
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions still unavailable after init attempt.');
             return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles.', ['status' => 501]);
         }
 
@@ -177,7 +179,7 @@ class AutoPress_AI_Helper {
     public function custom_api_batch_update_status(WP_REST_Request $request) { $post_ids = $request->get_param('post_ids'); $status = $request->get_param('status'); if (empty($post_ids) || !is_array($post_ids) || !in_array($status, ['publish', 'draft', 'pending', 'private'])) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs y un estado válido.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('edit_post', $id)) { $post_data = ['ID' => $id, 'post_status' => $status]; $result = wp_update_post($post_data, true); if (is_wp_error($result)) { $results['failed'][] = ['id' => $id, 'reason' => $result->get_error_message()]; } else { $results['success'][] = $id; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
 }
 
-add_action('init', function() {
-    error_log('[AUTOPRESS AI DEBUG] init hook fired, initializing AutoPress_AI_Helper.');
+add_action('plugins_loaded', function() {
+    error_log('[AUTOPRESS AI DEBUG] plugins_loaded hook fired, initializing AutoPress_AI_Helper.');
     new AutoPress_AI_Helper();
 }, 100);
