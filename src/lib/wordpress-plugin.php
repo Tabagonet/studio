@@ -1,45 +1,39 @@
 <?php
 /*
 Plugin Name: AutoPress AI Helper
-Description: Añade endpoints a la REST API para gestionar traducciones, stock y otras funciones personalizadas para AutoPress AI.
+Description: Añade endpoints a la REST API para gestionar traducciones y otras funciones personalizadas para AutoPress AI.
 Version: 1.65
 Author: intelvisual@intelvisual.es
 Requires at least: 5.8
 Requires PHP: 7.4
 */
 
-if ( ! defined( 'ABSPATH' ) ) exit;
+if (!defined('ABSPATH')) exit;
 
 class AutoPress_AI_Helper {
 
     public function __construct() {
+        // Registrar endpoints en rest_api_init
         add_action('rest_api_init', [$this, 'register_routes']);
     }
 
     public function register_routes() {
-        error_log('[AUTOPRESS AI DEBUG] rest_api_init hook fired. Registering endpoints...');
+        error_log('[AUTOPRESS AI DEBUG] Registering REST API endpoints...');
 
-        // Register meta fields first
-        $post_types = get_post_types(['public' => true], 'names');
-        $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
-        foreach ($post_types as $post_type) {
-            foreach ($yoast_meta_keys as $meta_key) {
-                register_post_meta($post_type, $meta_key, [
-                    'show_in_rest' => true,
-                    'single' => true,
-                    'type' => 'string',
-                    'auth_callback' => [$this, 'permission_check']
-                ]);
-            }
-            if (function_exists('pll_get_post_language')) {
-                register_rest_field($type, 'lang', ['get_callback' => function ($p) { return pll_get_post_language($p['id'], 'slug'); }, 'schema' => null]);
-                register_rest_field($type, 'translations', ['get_callback' => function ($p) { return pll_get_post_translations($p['id']); }, 'schema' => null]);
-            }
-        }
+        // Endpoint para verificar estado del plugin
+        register_rest_route('custom/v1', '/status', [
+            'methods' => 'GET',
+            'callback' => [$this, 'status_check'],
+            'permission_callback' => '__return_true'
+        ]);
 
-        // Register custom routes
-        register_rest_route('custom/v1', '/status', ['methods' => 'GET', 'callback' => [$this, 'custom_api_status_check'], 'permission_callback' => [$this, 'permission_check']]);
-        register_rest_route('custom/v1', '/get-languages', ['methods' => 'GET', 'callback' => [$this, 'custom_api_get_polylang_languages'], 'permission_callback' => [$this, 'permission_check']]);
+        // Endpoint para obtener idiomas de Polylang
+        register_rest_route('custom/v1', '/get-languages', [
+            'methods' => 'GET',
+            'callback' => [$this, 'get_polylang_languages'],
+            'permission_callback' => [$this, 'permission_check']
+        ]);
+        
         register_rest_route('custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => [$this, 'custom_api_link_translations'], 'permission_callback' => [$this, 'permission_check']]);
         register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => [$this, 'custom_api_trash_single_post'], 'permission_callback' => [$this, 'permission_check']]);
         register_rest_route('custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => [$this, 'custom_api_batch_trash_posts'], 'permission_callback' => [$this, 'permission_check']]);
@@ -56,65 +50,68 @@ class AutoPress_AI_Helper {
     }
 
     private function get_plugin_version() {
-        if (!function_exists('get_plugin_data')) { require_once(ABSPATH . 'wp-admin/includes/plugin.php'); }
+        if (!function_exists('get_plugin_data')) {
+            require_once ABSPATH . 'wp-admin/includes/plugin.php';
+        }
         return get_plugin_data(__FILE__)['Version'];
     }
 
-    public function custom_api_status_check($request) {
+    public function status_check() {
         error_log('[AUTOPRESS AI DEBUG] Endpoint /status hit.');
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => $this->get_plugin_version(),
             'verified' => true,
             'message' => 'Plugin activo y verificado.',
-            'nonce' => wp_create_nonce('wp_rest'), // Generate and provide nonce here
             'woocommerce_active' => class_exists('WooCommerce'),
-            'polylang_active' => function_exists('pll_get_post_language'),
-            'front_page_id' => (int) get_option('page_on_front', 0),
+            'polylang_active' => function_exists('pll_languages_list') && function_exists('pll_get_language'),
         ], 200);
     }
     
-    public function custom_api_get_polylang_languages() {
+    public function get_polylang_languages() {
         error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit.');
-        
-        $pll_list_exists = function_exists('pll_languages_list');
-        $pll_get_exists = function_exists('pll_get_language');
-        
-        error_log('[AUTOPRESS AI DEBUG] Checking for Polylang functions...');
-        error_log('[AUTOPRESS AI DEBUG] function_exists("pll_languages_list"): ' . ($pll_list_exists ? 'true' : 'false'));
-        error_log('[AUTOPRESS AI DEBUG] function_exists("pll_get_language"): ' . ($pll_get_exists ? 'true' : 'false'));
-    
-        if (!$pll_list_exists || !$pll_get_exists) {
-            error_log('[AUTOPRESS AI DEBUG] One or more Polylang functions do not exist. Returning error.');
-            return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles en el hook rest_api_init.', ['status' => 501]);
+
+        // Verificar si Polylang está activo
+        if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions not available.');
+            // Intentar cargar Polylang manualmente
+            if (function_exists('PLL')) {
+                error_log('[AUTOPRESS AI DEBUG] Attempting to initialize Polylang manually...');
+                PLL()->init();
+            }
+            // Verificar nuevamente
+            if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
+                error_log('[AUTOPRESS AI DEBUG] Polylang still not active after init attempt.');
+                return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles.', ['status' => 501]);
+            }
         }
-        
+
         $language_slugs = pll_languages_list();
         error_log('[AUTOPRESS AI DEBUG] pll_languages_list() returned: ' . print_r($language_slugs, true));
-        
-        if (empty($language_slugs)) {
-            error_log('[AUTOPRESS AI DEBUG] No languages found in Polylang. Returning empty array.');
+
+        if (!is_array($language_slugs) || empty($language_slugs)) {
+            error_log('[AUTOPRESS AI DEBUG] No languages configured in Polylang.');
             return new WP_REST_Response([], 200);
         }
-    
+
         $formatted_languages = [];
         foreach ($language_slugs as $slug) {
             $details = pll_get_language($slug);
-            if ($details) {
+            if ($details && is_object($details)) {
                 $formatted_languages[] = [
                     'code' => $details->slug,
                     'name' => $details->name,
                     'is_rtl' => (bool)$details->is_rtl,
                 ];
             } else {
-                 error_log('[AUTOPRESS AI DEBUG] pll_get_language() returned null for slug: ' . $slug);
+                error_log('[AUTOPRESS AI DEBUG] pll_get_language() returned null for slug: ' . $slug);
             }
         }
-        
-        error_log('[AUTOPRESS AI DEBUG] Final formatted languages being sent: ' . print_r($formatted_languages, true));
+
+        error_log('[AUTOPRESS AI DEBUG] Formatted languages: ' . print_r($formatted_languages, true));
         return new WP_REST_Response($formatted_languages, 200);
     }
-
+    
     public function custom_api_link_translations(WP_REST_Request $request) {
         if (!function_exists('pll_save_post_translations')) {
             return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]);
@@ -257,27 +254,3 @@ class AutoPress_AI_Helper {
     public function custom_api_update_product_images(WP_REST_Request $request) {
         $product_id = intval($request->get_param('product_id')); $mode = sanitize_text_field($request->get_param('mode')); $image_urls = $request->get_param('images'); if (!$product_id) { return new WP_Error('no_id', 'Falta el ID del producto', ['status' => 400]); } $product = wc_get_product($product_id); if (!$product) { return new WP_Error('not_found', 'Producto no encontrado', ['status' => 404]); } $current_ids = $product->get_gallery_image_ids(); if ($product->get_image_id()) { array_unshift($current_ids, $product->get_image_id()); } $new_ids = []; if (is_array($image_urls)) { foreach ($image_urls as $img) { if (is_numeric($img)) { $new_ids[] = intval($img); } else if (filter_var($img, FILTER_VALIDATE_URL)) { $id = $this->sideload_image($img, $product_id); if (is_numeric($id)) $new_ids[] = $id; } } } $final_ids = []; if ($mode === 'replace') { $final_ids = $new_ids; } else if ($mode === 'add') { $final_ids = array_unique(array_merge($current_ids, $new_ids)); } else if ($mode === 'remove') { $final_ids = array_diff($current_ids, $new_ids); } else if ($mode === 'clear') { $final_ids = []; } else { $final_ids = $new_ids; } $main_id = array_shift($final_ids); $product->set_image_id($main_id ?: 0); $product->set_gallery_image_ids($final_ids); $product->save(); return new WP_REST_Response(['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()], 200);
     }
-}
-
-// Initialize the plugin class
-add_action('init', function() {
-    new AutoPress_AI_Helper();
-});
-
-// Add filters for Polylang language parameter
-add_filter('rest_post_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
-add_filter('rest_page_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
-add_filter('rest_product_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
-
-// Add filter for checking product image existence
-add_action('woocommerce_rest_product_query', function($args, $request) {
-    $has_image = $request->get_param('has_image');
-    if ($has_image !== null) {
-        $args['meta_query'][] = array(
-            'key' => '_thumbnail_id',
-            'compare' => ($has_image === '1' || $has_image === 'yes') ? 'EXISTS' : 'NOT EXISTS',
-        );
-    }
-    return $args;
-}, 10, 2);
-?>

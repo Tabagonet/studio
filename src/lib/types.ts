@@ -1,5 +1,3 @@
-
-
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
