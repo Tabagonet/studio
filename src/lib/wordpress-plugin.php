@@ -34,7 +34,6 @@ function custom_media_sideload_image($file_url, $post_id) {
     return $id;
 }
 
-
 // == API CALLBACK FUNCTIONS ==
 
 function custom_api_status_check($request) {
@@ -45,7 +44,8 @@ function custom_api_status_check($request) {
         'message' => 'Plugin activo y verificado.',
         'woocommerce_active' => class_exists('WooCommerce'),
         'polylang_active' => function_exists('pll_get_post_language'),
-        'front_page_id' => (int) get_option('page_on_front', 0)
+        'front_page_id' => (int) get_option('page_on_front', 0),
+        'nonce' => wp_create_nonce('wp_rest')
     ], 200);
 }
 
@@ -55,7 +55,6 @@ function custom_api_get_polylang_languages() {
     }
     $language_slugs = pll_languages_list();
     if (empty($language_slugs)) {
-        // This is a valid state, not an error. Return an empty array.
         return new WP_REST_Response([], 200);
     }
     
@@ -73,7 +72,6 @@ function custom_api_get_polylang_languages() {
     
     return new WP_REST_Response($formatted_languages, 200);
 }
-
 
 function custom_api_link_translations( $request ) { 
     if ( ! function_exists( 'pll_save_post_translations' ) ) { 
@@ -213,6 +211,7 @@ function custom_api_clone_menu(WP_REST_Request $request) {
 function custom_api_update_product_images(WP_REST_Request $request) {
     $product_id = intval($request->get_param('product_id')); $mode = sanitize_text_field($request->get_param('mode')); $image_urls = $request->get_param('images'); if (!$product_id) { return new WP_Error('no_id', 'Falta el ID del producto', ['status' => 400]); } $product = wc_get_product($product_id); if (!$product) { return new WP_Error('not_found', 'Producto no encontrado', ['status' => 404]); } $current_ids = $product->get_gallery_image_ids(); if ($product->get_image_id()) { array_unshift($current_ids, $product->get_image_id()); } $new_ids = []; if (is_array($image_urls)) { foreach ($image_urls as $img) { if (is_numeric($img)) { $new_ids[] = intval($img); } else if (filter_var($img, FILTER_VALIDATE_URL)) { $id = custom_media_sideload_image($img, $product_id); if (is_numeric($id)) $new_ids[] = $id; } } } $final_ids = []; if ($mode === 'replace') { $final_ids = $new_ids; } else if ($mode === 'add') { $final_ids = array_unique(array_merge($current_ids, $new_ids)); } else if ($mode === 'remove') { $final_ids = array_diff($current_ids, $new_ids); } else if ($mode === 'clear') { $final_ids = []; } else { $final_ids = $new_ids; } $main_id = array_shift($final_ids); $product->set_image_id($main_id ?: 0); $product->set_gallery_image_ids($final_ids); $product->save(); return new WP_REST_Response(['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()], 200);
 }
+
 
 // == HOOKS AND REGISTRATIONS ==
 

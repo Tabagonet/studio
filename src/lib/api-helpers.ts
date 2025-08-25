@@ -79,6 +79,24 @@ export async function getApiClientsForUser(uid: string): Promise<ApiClients> {
     username: activeConnection.wordpressUsername,
     applicationPassword: activeConnection.wordpressApplicationPassword,
   });
+  
+  // New: Fetch nonce and add it to wpApi instance
+  if (wpApi) {
+    try {
+        const siteUrl = activeConnection.wordpressApiUrl.replace(/\/wp-json\/wp\/v2$/, '');
+        const statusEndpoint = `${siteUrl}/wp-json/custom/v1/status`;
+        const statusResponse = await wpApi.get(statusEndpoint);
+        if (statusResponse.data && statusResponse.data.nonce) {
+            wpApi.defaults.headers.common['X-WP-Nonce'] = statusResponse.data.nonce;
+            console.log('[api-helpers] Nonce fetched and added to wpApi headers.');
+        } else {
+            console.warn('[api-helpers] Could not fetch nonce from status endpoint. Custom API calls may fail.');
+        }
+    } catch(e: any) {
+        console.warn(`[api-helpers] Failed to fetch nonce. This might be okay for public endpoints, but custom endpoints will fail. Error: ${e.message}`);
+    }
+  }
+
 
   const shopifyApi = createShopifyApi({
     url: activeConnection.shopifyStoreUrl,
