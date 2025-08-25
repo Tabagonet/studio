@@ -55,7 +55,8 @@ function custom_api_get_polylang_languages() {
     }
     $language_slugs = pll_languages_list();
     if (empty($language_slugs)) {
-        return new WP_REST_Response([], 200); // Return empty array if no languages are configured
+        // This is a valid state, not an error. Return an empty array.
+        return new WP_REST_Response([], 200);
     }
     
     $formatted_languages = [];
@@ -215,29 +216,6 @@ function custom_api_update_product_images(WP_REST_Request $request) {
 
 // == HOOKS AND REGISTRATIONS ==
 
-add_action('admin_menu', function() {
-    $plugin_version = autopress_ai_get_plugin_version();
-    $page_title = 'AutoPress AI Helper - v' . esc_html($plugin_version);
-    add_options_page($page_title, 'AutoPress AI', 'manage_options', 'autopress-ai', 'autopress_ai_options_page');
-});
-
-add_action('init', function() {
-    $post_types = get_post_types(['public' => true], 'names');
-    $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
-    foreach ($post_types as $post_type) {
-        foreach ($yoast_meta_keys as $meta_key) {
-            register_post_meta($post_type, $meta_key, ['show_in_rest' => true, 'single' => true, 'type' => 'string', 'auth_callback' => '__return_true']);
-        }
-    }
-});
-
-add_filter('rest_post_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
-add_filter('rest_page_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
-add_filter('rest_product_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
-add_action('woocommerce_rest_product_query', function($args, $request) { $has_image = $request->get_param('has_image'); if (null === $has_image) { return $args; } $args['meta_query'][] = array( 'key' => '_thumbnail_id', 'compare' => ($has_image === '1' || $has_image === 'yes') ? 'EXISTS' : 'NOT EXISTS', ); return $args; }, 10, 2);
-
-
-// Register ALL Endpoints in a single hook
 add_action('rest_api_init', function () {
     // Register lang and translations fields for all public post types
     $post_types = get_post_types(['public' => true], 'names');
@@ -259,4 +237,24 @@ add_action('rest_api_init', function () {
     register_rest_route('custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => 'custom_api_clone_menu', 'permission_callback' => 'autopress_ai_permission_check']);
     register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => 'autopress_ai_permission_check' ]);
 });
+
+// Register Yoast meta fields after init
+add_action('init', function() {
+    $post_types = get_post_types(['public' => true], 'names');
+    $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
+    foreach ($post_types as $post_type) {
+        foreach ($yoast_meta_keys as $meta_key) {
+            register_post_meta($post_type, $meta_key, ['show_in_rest' => true, 'single' => true, 'type' => 'string', 'auth_callback' => '__return_true']);
+        }
+    }
+});
+
+// Add filters for Polylang language parameter
+add_filter('rest_post_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
+add_filter('rest_page_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
+add_filter('rest_product_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
+
+// Add filter for checking product image existence
+add_action('woocommerce_rest_product_query', function($args, $request) { $has_image = $request->get_param('has_image'); if (null === $has_image) { return $args; } $args['meta_query'][] = array( 'key' => '_thumbnail_id', 'compare' => ($has_image === '1' || $has_image === 'yes') ? 'EXISTS' : 'NOT EXISTS', ); return $args; }, 10, 2);
+
 ?>

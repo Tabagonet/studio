@@ -32,7 +32,6 @@ export async function GET(req: NextRequest) {
     
     // The plugin now correctly handles errors and returns WP_Error objects.
     // If the response is not OK, it means Polylang isn't active or there's another issue.
-    // Axios will throw for non-2xx responses, which will be caught below.
     if (response.data && Array.isArray(response.data)) {
        // Further validation to ensure the data has the correct shape
       if (response.data.every(item => typeof item === 'object' && item !== null && 'code' in item && 'name' in item)) {
@@ -42,7 +41,12 @@ export async function GET(req: NextRequest) {
         return NextResponse.json([]);
       }
     } else {
-      // Handle cases where the endpoint returns a non-array response unexpectedly
+      // Handle cases where the endpoint returns a non-array response (like a WP_Error object from the plugin)
+      if (response.data?.code) {
+          console.warn(`Plugin reported an issue: ${response.data.message}`);
+      } else {
+          console.warn("Invalid or empty response from get-languages endpoint, returning empty array.");
+      }
       return NextResponse.json([]);
     }
 
