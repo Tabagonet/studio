@@ -22,7 +22,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
   let { url, username, applicationPassword } = credentials;
 
   if (!url || !username || !applicationPassword) {
-    console.error("[createWordPressApi] Incomplete credentials provided.");
+    console.error("[createWordPressApi] Incomplete credentials:", { url, username, applicationPassword: '***' });
     return null;
   }
   
@@ -55,7 +55,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
         }
     } catch (nonceError: any) {
         console.error('[createWordPressApi] Failed to fetch nonce:', nonceError.message, nonceError.response?.data);
-        // Continue without nonce for now, but log the error. Some requests might not need it.
+        // Do not throw an error, allow proceeding without a nonce for public endpoints.
     }
     
     return { api, nonce };

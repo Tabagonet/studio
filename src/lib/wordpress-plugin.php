@@ -17,16 +17,14 @@ class AutoPress_AI_Helper {
     }
 
     public function register_routes() {
-        error_log('[AUTOPRESS AI DEBUG] Registering REST API endpoints...');
+        error_log('[AUTOPRESS AI DEBUG] Registering REST API endpoints on rest_api_init...');
 
-        // Endpoint para verificar estado del plugin
         register_rest_route('custom/v1', '/status', [
             'methods' => 'GET',
             'callback' => [$this, 'status_check'],
             'permission_callback' => '__return_true'
         ]);
 
-        // Endpoint para obtener idiomas de Polylang
         register_rest_route('custom/v1', '/get-languages', [
             'methods' => 'GET',
             'callback' => [$this, 'get_polylang_languages'],
@@ -80,17 +78,17 @@ class AutoPress_AI_Helper {
     public function permission_check(WP_REST_Request $request) {
         $nonce = $request->get_header('X-WP-Nonce');
         $user_can = current_user_can('edit_posts');
-        
-        if (!$user_can) {
-             error_log('[AUTOPRESS AI DEBUG] Permission check failed: User cannot edit_posts.');
-             return new WP_Error('insufficient_permissions', 'User lacks edit_posts capability.', ['status' => 403]);
+        error_log('[AUTOPRESS AI DEBUG] Permission check - Nonce: ' . ($nonce ? $nonce : 'missing') . ', User can edit_posts: ' . ($user_can ? 'true' : 'false'));
+        if (!$nonce) {
+            return new WP_Error('no_nonce', 'Nonce header missing.', ['status' => 401]);
         }
-
-        // The nonce check is now more for specific actions than a blanket requirement
-        // But for sensitive endpoints like get-languages, it's good practice.
-        // For now, let's just log it. The Application Password should be sufficient.
-        error_log('[AUTOPRESS AI DEBUG] Permission check - User can edit_posts: ' . ($user_can ? 'true' : 'false'));
-        return $user_can;
+        if (!wp_verify_nonce($nonce, 'wp_rest')) {
+            return new WP_Error('invalid_nonce', 'Invalid or expired nonce.', ['status' => 403]);
+        }
+        if (!$user_can) {
+            return new WP_Error('insufficient_permissions', 'User lacks edit_posts capability.', ['status' => 403]);
+        }
+        return true;
     }
 
     private function get_plugin_version() {
@@ -105,7 +103,7 @@ class AutoPress_AI_Helper {
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
         $is_polylang_active = is_plugin_active('polylang/polylang.php') || is_plugin_active('polylang-pro/polylang.php');
         $pll_functions_available = function_exists('pll_languages_list') && function_exists('pll_get_language');
-        error_log('[AUTOPRESS AI DEBUG] Polylang active: ' . ($is_polylang_active ? 'true' : 'false') . ', Functions available: ' . ($pll_functions_available ? 'true' : 'false'));
+        error_log('[AUTOPRESS AI DEBUG] Is Polylang active: ' . ($is_polylang_active ? 'true' : 'false') . ', Functions available: ' . ($pll_functions_available ? 'true' : 'false'));
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => $this->get_plugin_version(),
@@ -138,7 +136,7 @@ class AutoPress_AI_Helper {
         }
 
         if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
-            error_log('[AUTOPRESS AI DEBUG] Polylang functions still unavailable after init attempt.');
+            error_log('[AUTOPRESS AI DEBUG] Polylang functions still not available after init attempt.');
             return new WP_Error('polylang_not_found', 'Polylang no está activo o sus funciones no están disponibles.', ['status' => 501]);
         }
 
@@ -167,7 +165,7 @@ class AutoPress_AI_Helper {
         error_log('[AUTOPRESS AI DEBUG] Formatted languages: ' . print_r($formatted_languages, true));
         return new WP_REST_Response($formatted_languages, 200);
     }
-
+    
     public function custom_api_link_translations(WP_REST_Request $request) { if (!function_exists('pll_save_post_translations')) { return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]); } $translations = $request->get_param('translations'); if (empty($translations) || !is_array($translations)) { return new WP_Error('invalid_payload', 'Se requiere un array asociativo de traducciones.', ['status' => 400]); } $sanitized = []; foreach ($translations as $lang => $post_id) { $sanitized[sanitize_key($lang)] = absint($post_id); } pll_save_post_translations($sanitized); return new WP_REST_Response(['success' => true, 'message' => 'Traducciones enlazadas.'], 200); }
     public function custom_api_trash_single_post(WP_REST_Request $request) { $post_id = $request->get_param('id'); $id = absint($post_id); if (!$id || !current_user_can('delete_post', $id)) { return new WP_Error('permission_denied', 'No tienes permiso para eliminar este post.', ['status' => 403]); } if (wp_trash_post($id)) { return new WP_REST_Response(['success' => true, 'message' => "Post {$id} movido a la papelera."], 200); } return new WP_Error('trash_failed', "No se pudo mover el post {$id} a la papelera.", ['status' => 500]); }
     public function custom_api_batch_trash_posts(WP_REST_Request $request) { $post_ids = $request->get_param('post_ids'); if (empty($post_ids) || !is_array($post_ids)) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs de entradas.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('delete_post', $id) && function_exists('wp_trash_post')) { if (wp_trash_post($id)) { $results['success'][] = $id; } else { $results['failed'][] = ['id' => $id, 'reason' => 'Fallo en wp_trash_post']; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
