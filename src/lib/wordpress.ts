@@ -47,7 +47,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
         const nonceResponse = await api.get('/users/me', { params: { context: 'edit' } });
         nonce = nonceResponse.headers['x-wp-nonce'] || '';
         if (!nonce) {
-             console.log('[createWordPressApi] Nonce was not found in the response headers from /users/me.');
+             console.warn('[createWordPressApi] Nonce was not found in the response headers from /users/me.');
         } else {
              console.log('[createWordPressApi] Successfully fetched a new nonce from WordPress.');
         }
