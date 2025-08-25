@@ -23,22 +23,27 @@ function autopress_ai_get_plugin_version() {
 function autopress_ai_permission_check() {
     // This is the standard permission check for application passwords.
     // It ensures that only authenticated requests from a user with editing capabilities can proceed.
-    return current_user_can('edit_posts');
+    if ( ! current_user_can( 'edit_posts' ) ) {
+        error_log('[AUTOPRESS AI DEBUG] Permission check failed for user.');
+        return false;
+    }
+    return true;
 }
 
 function custom_media_sideload_image($file_url, $post_id) {
     if (!function_exists('media_handle_sideload')) { require_once ABSPATH . 'wp-admin/includes/file.php'; require_once ABSPATH . 'wp-admin/includes/media.php'; require_once ABSPATH . 'wp-admin/includes/image.php'; }
     $tmp = download_url($file_url, 15);
-    if (is_wp_error($tmp)) { error_log('AutoPress AI Sideload Error (download_url): ' . $tmp->get_error_message()); return $tmp; }
+    if (is_wp_error($tmp)) { error_log('[AUTOPRESS AI DEBUG] Sideload Error (download_url): ' . $tmp->get_error_message()); return $tmp; }
     $file_array = ['name' => basename(wp_parse_url($file_url, PHP_URL_PATH)), 'tmp_name' => $tmp];
     $id = media_handle_sideload($file_array, $post_id);
-    if (is_wp_error($id)) { @unlink($file_array['tmp_name']); error_log('AutoPress AI Sideload Error (media_handle_sideload): ' . $id->get_error_message()); }
+    if (is_wp_error($id)) { @unlink($file_array['tmp_name']); error_log('[AUTOPRESS AI DEBUG] Sideload Error (media_handle_sideload): ' . $id->get_error_message()); }
     return $id;
 }
 
 // == API CALLBACK FUNCTIONS ==
 
 function custom_api_status_check($request) {
+    error_log('[AUTOPRESS AI DEBUG] Endpoint /status hit.');
     return new WP_REST_Response([
         'status' => 'ok',
         'plugin_version' => autopress_ai_get_plugin_version(),
@@ -51,13 +56,28 @@ function custom_api_status_check($request) {
 }
 
 function custom_api_get_polylang_languages() {
-    if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
+    error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit.');
+    
+    $pll_list_exists = function_exists('pll_languages_list');
+    $pll_get_exists = function_exists('pll_get_language');
+    
+    error_log('[AUTOPRESS AI DEBUG] Checking for Polylang functions...');
+    error_log('[AUTOPRESS AI DEBUG] function_exists("pll_languages_list"): ' . ($pll_list_exists ? 'true' : 'false'));
+    error_log('[AUTOPRESS AI DEBUG] function_exists("pll_get_language"): ' . ($pll_get_exists ? 'true' : 'false'));
+
+    if (!$pll_list_exists || !$pll_get_exists) {
+        error_log('[AUTOPRESS AI DEBUG] One or more Polylang functions do not exist. Returning error.');
         return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]);
     }
+    
     $language_slugs = pll_languages_list();
+    error_log('[AUTOPRESS AI DEBUG] pll_languages_list() returned: ' . print_r($language_slugs, true));
+    
     if (empty($language_slugs)) {
+        error_log('[AUTOPRESS AI DEBUG] No languages found in Polylang. Returning empty array.');
         return new WP_REST_Response([], 200);
     }
+
     $formatted_languages = [];
     foreach ($language_slugs as $slug) {
         $details = pll_get_language($slug);
@@ -67,8 +87,12 @@ function custom_api_get_polylang_languages() {
                 'name' => $details->name,
                 'is_rtl' => (bool)$details->is_rtl,
             ];
+        } else {
+             error_log('[AUTOPRESS AI DEBUG] pll_get_language() returned null for slug: ' . $slug);
         }
     }
+    
+    error_log('[AUTOPRESS AI DEBUG] Final formatted languages being sent: ' . print_r($formatted_languages, true));
     return new WP_REST_Response($formatted_languages, 200);
 }
 
@@ -215,6 +239,7 @@ function custom_api_update_product_images(WP_REST_Request $request) {
 
 // Unify all registrations into a single function hooked to rest_api_init
 function autopress_ai_register_rest_endpoints() {
+    error_log('[AUTOPRESS AI DEBUG] rest_api_init hook fired. Registering endpoints...');
     // Register meta fields
     $post_types = get_post_types(['public' => true], 'names');
     foreach ($post_types as $type) {
@@ -240,6 +265,7 @@ function autopress_ai_register_rest_endpoints() {
     register_rest_route('custom/v1', '/menus', ['methods' => 'GET', 'callback' => 'custom_api_get_all_menus', 'permission_callback' => 'autopress_ai_permission_check']);
     register_rest_route('custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => 'custom_api_clone_menu', 'permission_callback' => 'autopress_ai_permission_check']);
     register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => 'autopress_ai_permission_check']);
+    error_log('[AUTOPRESS AI DEBUG] All endpoints registered.');
 }
 
 // Hook the main registration function to the correct action
