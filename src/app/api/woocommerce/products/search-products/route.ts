@@ -74,7 +74,9 @@ export async function GET(req: NextRequest) {
             imageUrl = product.images[0].src;
         } 
         
-        const supplierAttribute = product.attributes.find((attr: any) => attr.name === 'Proveedor');
+        const supplierAttribute = Array.isArray(product.attributes)
+            ? product.attributes.find((attr: any) => attr.name === 'Proveedor')
+            : null;
 
         return {
             id: product.id,

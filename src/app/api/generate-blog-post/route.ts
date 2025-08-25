@@ -5,12 +5,12 @@ import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
 import { z } from 'zod';
 import Handlebars from 'handlebars';
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef as getEntityRefHelper } from '@/lib/api-helpers';
 
 
 const languageCodeToName: Record<string, string> = {
     'es': 'Spanish', 'en': 'English', 'fr': 'French',
-    'de': 'German', 'pt': 'Portuguese', 'it': 'Italiano',
+    'de': 'German', 'pt': 'Portuguese', 'it': 'Italian',
 };
 
 const BlogContentInputSchema = z.object({
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         const cost = CREDIT_COSTS[input.mode] || 1;
         
         const { activeConnectionKey } = await getApiClientsForUser(uid);
-        const [entityRef] = await getEntityRef(uid);
+        const [entityRef] = await getEntityRefHelper(uid);
         
         const languageName = languageCodeToName[input.language] || 'Spanish';
 

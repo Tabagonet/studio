@@ -1,5 +1,4 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
@@ -27,7 +26,7 @@ const ImageMetaOnlySchema = z.object({
 
 const languageCodeToName: Record<string, string> = {
     'es': 'Spanish', 'en': 'English', 'fr': 'French',
-    'de': 'German', 'pt': 'Portuguese', 'it': 'Italiano',
+    'de': 'German', 'pt': 'Portuguese', 'it': 'Italian',
 };
 
 
