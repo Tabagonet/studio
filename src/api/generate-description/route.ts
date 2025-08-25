@@ -1,9 +1,9 @@
 
 
 import { NextRequest, NextResponse } from 'next/server';
-import { adminAuth, adminDb, admin } from '@/lib/firebase-admin';
+import { admin, adminAuth, adminDb } from '@/lib/firebase-admin';
 import { z } from 'zod';
-import { getApiClientsForUser } from '@/lib/api-helpers';
+import { getApiClientsForUser, getPromptForConnection, getEntityRef as getEntityRefHelper } from '@/lib/api-helpers';
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import Handlebars from 'handlebars';
 
@@ -11,7 +11,7 @@ const FullProductOutputSchema = z.object({
   name: z.string().describe('A new, SEO-friendly product title. It should start with the base name and be enriched with the descriptive context.'),
   shortDescription: z.string().describe('A brief, catchy summary of the product (1-2 sentences). Must use HTML for formatting.'),
   longDescription: z.string().describe('A detailed, persuasive, and comprehensive description of the product. Must use HTML for formatting.'),
-  tags: z.array(z.string()).describe('An array of 5 to 10 relevant SEO keywords/tags for the product, in English.'),
+  tags: z.array(z.string()).describe('An array of 5 to 10 relevant SEO keywords/tags for the product, in the specified {{language}}.'),
   imageTitle: z.string().describe('A concise, SEO-friendly title for the product images.'),
   imageAltText: z.string().describe('A descriptive alt text for SEO, describing the image for visually impaired users.'),
   imageCaption: z.string().describe('An engaging caption for the image, suitable for the media library.'),
@@ -25,45 +25,15 @@ const ImageMetaOnlySchema = z.object({
   imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
 
-async function getProductDescriptionPrompt(uid: string): Promise<string> {
-    const defaultPrompt = `You are an expert e-commerce copywriter and SEO specialist.
-Your primary task is to receive product information and generate a complete, accurate, and compelling product listing for a WooCommerce store.
-The response must be a valid JSON object. Do not include any markdown backticks (\`\`\`) or the word "json" in your response.
+const languageCodeToName: Record<string, string> = {
+    'es': 'Spanish', 'en': 'English', 'fr': 'French',
+    'de': 'German', 'pt': 'Portuguese', 'it': 'Italian',
+    'nl': 'Dutch', 'ru': 'Russian', 'ja': 'Japanese',
+    'zh': 'Chinese', 'ar': 'Arabic', 'ko': 'Korean',
+};
 
-**Input Information:**
-- **Base Name (from CSV, this is the starting point):** {{baseProductName}}
-- **Descriptive Context (from image filename, use this for inspiration):** {{productName}}
-- **Language for output:** {{language}}
-- **Product Type:** {{productType}}
-- **Category:** {{categoryName}}
-- **User-provided Tags (for inspiration):** {{tags}}
-- **Contained Products (for "Grouped" type only):**
-{{{groupedProductsList}}}
 
-**Instructions:**
-Generate a JSON object with the following keys.
-
-a.  **"name":** Create a new, SEO-friendly product title in {{language}}. It MUST start with the "Base Name" and should be intelligently expanded using the "Descriptive Context" to make it more appealing and searchable.
-b.  **"shortDescription":** A concise and engaging summary in {{language}}, relevant to the newly generated name.
-c.  **"longDescription":** A detailed description in {{language}}, relevant to the newly generated name. Use HTML tags like <strong>, <em>, and <br> for formatting.
-d.  **"tags":** An array of 5 to 10 relevant SEO keywords/tags in English.
-e.  **"imageTitle":** A concise, SEO-friendly title for product images.
-f.  **"imageAltText":** A descriptive alt text for SEO.
-g.  **"imageCaption":** An engaging caption for the image.
-h.  **"imageDescription":** A detailed description for the image media library entry.
-
-Generate the complete JSON object now.`;
-    if (!adminDb) return defaultPrompt;
-    try {
-        const userSettingsDoc = await adminDb.collection('user_settings').doc(uid).get();
-        return userSettingsDoc.data()?.prompts?.productDescription || defaultPrompt;
-    } catch (error) {
-        console.error("Error fetching 'productDescription' prompt, using default.", error);
-        return defaultPrompt;
-    }
-}
-
-async function getEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
+async function getCreditEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
 
     const userDoc = await adminDb.collection('users').doc(uid).get();
@@ -98,8 +68,8 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.string().optional(), // Expect a comma-separated string from the client now
-        language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).default('Spanish'),
+        tags: z.array(z.string()).optional(),
+        language: z.string().optional().default('es'), // Expect language code e.g., 'es'
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
     });
@@ -111,7 +81,8 @@ export async function POST(req: NextRequest) {
     
     const clientInput = validationResult.data;
     
-    const { wooApi } = await getApiClientsForUser(uid);
+    const { wooApi, activeConnectionKey } = await getApiClientsForUser(uid);
+    const [entityRef] = await getEntityRefHelper(uid);
     
     let groupedProductsList = 'N/A';
     if (clientInput.productType === 'grouped' && clientInput.groupedProductIds && clientInput.groupedProductIds.length > 0) {
@@ -131,25 +102,32 @@ export async function POST(req: NextRequest) {
     const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY!);
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest", generationConfig: { responseMimeType: "application/json" } });
     
-    let promptTemplate: string;
     let outputSchema: z.ZodTypeAny;
     let creditCost: number;
 
     if (clientInput.mode === 'image_meta_only') {
       outputSchema = ImageMetaOnlySchema;
-      promptTemplate = await getProductDescriptionPrompt(uid);
       creditCost = 1;
     } else { // full_product
       outputSchema = FullProductOutputSchema;
-      promptTemplate = await getProductDescriptionPrompt(uid);
       creditCost = 10;
     }
     
+    const promptTemplate = await getPromptForConnection('productDescription', activeConnectionKey, entityRef);
+    
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
+    const languageName = languageCodeToName[clientInput.language] || 'Spanish';
+
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
-    // Use the string directly as it comes from the client now
-    const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: clientInput.tags || '', groupedProductsList };
+    // Join array of tags into a comma-separated string for the template
+    const templateData = { 
+        ...clientInput,
+        language: languageName, // Use the full name for the prompt
+        categoryName: cleanedCategoryName, 
+        tags: (clientInput.tags || []).join(', '), 
+        groupedProductsList 
+    };
     const finalPrompt = template(templateData);
     
     const result = await model.generateContent(finalPrompt);
@@ -160,8 +138,8 @@ export async function POST(req: NextRequest) {
       throw new Error('AI returned an empty response.');
     }
     
-    const [entityRef, cost] = await getEntityRef(uid, creditCost);
-    await entityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
+    const [creditEntityRef, cost] = await getCreditEntityRef(uid, creditCost);
+    await creditEntityRef.set({ aiUsageCount: admin.firestore.FieldValue.increment(cost) }, { merge: true });
 
     return NextResponse.json(aiContent);
 

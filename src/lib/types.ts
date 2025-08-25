@@ -127,8 +127,8 @@ export interface BlogPostData {
   categoryPath?: string;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
-  sourceLanguage: string; // Now the language CODE, e.g., "es"
-  targetLanguages: string[]; // Array of language CODES
+  sourceLanguage: string; // Language code, e.g., 'es', 'en'
+  targetLanguages: string[]; // Array of language codes
   author: WordPressUser | null;
   publishDate: Date | null;
 }
@@ -184,7 +184,7 @@ export interface ProductData {
     height: string;
   };
   shipping_class: string;
-  language: string;
+  language: string; // Language code, e.g., 'es', 'en'
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];
   source?: 'wizard' | 'batch';

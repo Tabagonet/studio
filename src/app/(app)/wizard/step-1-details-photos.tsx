@@ -1,3 +1,4 @@
+
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -228,7 +229,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
   
   const handleSourceLanguageChange = (newSourceLang: string) => {
       updateProductData({
-          language: newSourceLang as ProductData['language'],
+          language: newSourceLang,
           targetLanguages: productData.targetLanguages?.filter(l => l !== newSourceLang)
       });
   };
