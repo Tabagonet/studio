@@ -1,5 +1,5 @@
-// src/lib/types.ts
-      
+
+
 import type { LucideIcon } from 'lucide-react';
 import type { SeoInterpretationOutput, SuggestLinksInput, SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
 
@@ -184,7 +184,7 @@ export interface ProductData {
     height: string;
   };
   shipping_class: string;
-  language: string;
+  language: string; // Now holds the language *code* e.g., 'es'
   shouldSaveSku?: boolean;
   groupedProductIds?: number[];
   source?: 'wizard' | 'batch';

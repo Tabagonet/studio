@@ -24,11 +24,13 @@ const postSchema = z.object({
   author: z.object({ id: z.number() }).nullable(),
   category: z.object({ id: z.number() }).nullable(),
   categoryPath: z.string().optional(),
-  keywords: z.string().optional(),
+  tags: z.array(z.string()).optional(),
   featuredImage: z.object({ uploadedUrl: z.string().url().optional() }).nullable(),
   publishDate: z.string().nullable().or(z.date().nullable()),
   metaDescription: z.string().optional(),
   focusKeyword: z.string().optional(),
+  sourceLanguage: z.string().optional(), // Now expects the name, e.g., "Spanish"
+  targetLanguages: z.array(z.string()).optional(),
 });
 
 // The payload for creating a single post. Linking is now handled separately.
@@ -78,7 +80,7 @@ export async function POST(request: NextRequest) {
         }
 
         // 2. Find or create tags once
-        const tagNames = postData.keywords ? postData.keywords.split(',').map(t => t.trim()).filter(Boolean) : [];
+        const tagNames = postData.tags || [];
         const tagIds = await findOrCreateTags(tagNames, wpApi);
         
         // 3. Find or create category

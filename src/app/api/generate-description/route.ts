@@ -25,6 +25,11 @@ const ImageMetaOnlySchema = z.object({
   imageDescription: z.string().describe('A detailed description for the image media library entry.'),
 });
 
+const languageCodeToName: Record<string, string> = {
+    'es': 'Spanish', 'en': 'English', 'fr': 'French',
+    'de': 'German', 'pt': 'Portuguese', 'it': 'Italiano',
+};
+
 
 async function getCreditEntityRef(uid: string, cost: number): Promise<[FirebaseFirestore.DocumentReference, number]> {
     if (!adminDb) throw new Error("Firestore not configured.");
@@ -61,8 +66,8 @@ export async function POST(req: NextRequest) {
         productName: z.string().min(1),
         productType: z.string(),
         categoryName: z.string().optional(),
-        tags: z.array(z.string()).optional(), // Changed to array
-        language: z.enum(['Spanish', 'English', 'French', 'German', 'Portuguese']).optional().default('Spanish'),
+        tags: z.array(z.string()).optional(),
+        language: z.string().optional().default('es'), // Expect language code e.g., 'es'
         groupedProductIds: z.array(z.number()).optional(),
         mode: z.enum(['full_product', 'image_meta_only']).default('full_product'),
     });
@@ -110,9 +115,17 @@ export async function POST(req: NextRequest) {
     
     const cleanedCategoryName = clientInput.categoryName ? clientInput.categoryName.replace(/—/g, '').trim() : '';
 
+    const languageName = languageCodeToName[clientInput.language] || 'Spanish';
+
     const template = Handlebars.compile(promptTemplate, { noEscape: true });
     // Join array of tags into a comma-separated string for the template
-    const templateData = { ...clientInput, categoryName: cleanedCategoryName, tags: (clientInput.tags || []).join(', '), groupedProductsList };
+    const templateData = { 
+        ...clientInput,
+        language: languageName, // Use the full name for the prompt
+        categoryName: cleanedCategoryName, 
+        tags: (clientInput.tags || []).join(', '), 
+        groupedProductsList 
+    };
     const finalPrompt = template(templateData);
     
     const result = await model.generateContent(finalPrompt);

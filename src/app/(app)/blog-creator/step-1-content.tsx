@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import React, { useState, useEffect } from 'react';
@@ -21,22 +22,20 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { RichTextEditor } from '@/components/features/editor/rich-text-editor';
 import { LinkSuggestionsDialog } from '@/components/features/editor/link-suggestions-dialog';
-import type { SuggestLinksOutput, LinkSuggestion } from '@/ai/schemas';
+import type { SuggestLinksOutput, LinkSuggestion, Language } from '@/lib/types';
 
 
-const ALL_LANGUAGES = [
-    { code: 'Spanish', name: 'Español' },
-    { code: 'English', name: 'Inglés' },
-    { code: 'French', name: 'Francés' },
-    { code: 'German', name: 'Alemán' },
-    { code: 'Portuguese', name: 'Portugués' },
-];
+interface Step1ContentProps {
+  postData: BlogPostData;
+  updatePostData: (data: Partial<BlogPostData>) => void;
+  onCropImage: (photo: ProductPhoto) => void;
+}
 
-
-export function Step1Content({ postData, updatePostData, onCropImage }: { postData: BlogPostData; updatePostData: (data: Partial<BlogPostData>) => void; onCropImage: (photo: ProductPhoto) => void; }) {
+export function Step1Content({ postData, updatePostData, onCropImage }: Step1ContentProps) {
     const [categories, setCategories] = useState<WordPressPostCategory[]>([]);
     const [authors, setAuthors] = useState<WordPressUser[]>([]);
-    const [isLoading, setIsLoading] = useState({ categories: true, authors: true, ai: false });
+    const [availableLanguages, setAvailableLanguages] = useState<Language[]>([]);
+    const [isLoading, setIsLoading] = useState({ categories: true, authors: true, languages: true, ai: false });
     
     const [isImageDialogOpen, setIsImageDialogOpen] = useState(false);
     const [imageUrl, setImageUrl] = useState('');
@@ -61,16 +60,15 @@ export function Step1Content({ postData, updatePostData, onCropImage }: { postDa
             </div>
         );
     }
-
-    const availableTargetLanguages = ALL_LANGUAGES.filter(lang => lang.code !== postData.sourceLanguage);
-
+    
     useEffect(() => {
         const fetchData = async (token: string) => {
-            setIsLoading(prev => ({ ...prev, categories: true, authors: true }));
+            setIsLoading(prev => ({ ...prev, categories: true, authors: true, languages: true }));
             try {
-                const [catResponse, authorResponse, configResponse] = await Promise.all([
+                const [catResponse, authorResponse, langResponse, configResponse] = await Promise.all([
                     fetch('/api/wordpress/post-categories', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/wordpress/users', { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch('/api/wordpress/get-languages', { headers: { 'Authorization': `Bearer ${token}` } }),
                     fetch('/api/check-config', { headers: { 'Authorization': `Bearer ${token}` }})
                 ]);
 
@@ -84,6 +82,17 @@ export function Step1Content({ postData, updatePostData, onCropImage }: { postDa
                         updatePostData({ author: matchingAuthor });
                     }
                 }
+                if (langResponse.ok) {
+                    const langData = await langResponse.json();
+                    setAvailableLanguages(langData);
+                     if (langData.length > 0 && !postData.sourceLanguage) {
+                        const spanishLang = langData.find((l: Language) => l.code === 'es');
+                        updatePostData({ sourceLanguage: spanishLang ? spanishLang.code : langData[0].code });
+                    }
+                } else {
+                     console.warn('Could not load Polylang languages.');
+                     setAvailableLanguages([]);
+                }
                  if(configResponse.ok) {
                     const configData = await configResponse.json();
                     setIsPolylangActive(configData.pluginActive);
@@ -92,7 +101,7 @@ export function Step1Content({ postData, updatePostData, onCropImage }: { postDa
                 const errorMessage = error instanceof Error ? error.message : String(error);
                 toast({ title: "Error de Carga", description: errorMessage, variant: "destructive" });
             } finally {
-                setIsLoading(prev => ({ ...prev, categories: false, authors: false }));
+                setIsLoading(prev => ({ ...prev, categories: false, authors: false, languages: false }));
             }
         };
 
@@ -114,17 +123,20 @@ export function Step1Content({ postData, updatePostData, onCropImage }: { postDa
         updatePostData({ featuredImage: photos[0] || null });
     };
 
-    const handleSourceLanguageChange = (newSourceLang: string) => {
-        updatePostData({
-            sourceLanguage: newSourceLang,
-            targetLanguages: postData.targetLanguages.filter(l => l !== newSourceLang)
-        });
+    const handleSourceLanguageChange = (newSourceLangCode: string) => {
+        const selectedLang = availableLanguages.find(l => l.code === newSourceLangCode);
+        if (selectedLang) {
+            updatePostData({
+                sourceLanguage: selectedLang.code,
+                targetLanguages: postData.targetLanguages.filter(l => l !== selectedLang.name)
+            });
+        }
     };
 
-    const handleLanguageToggle = (langCode: string) => {
-        const newLangs = postData.targetLanguages.includes(langCode)
-            ? postData.targetLanguages.filter(l => l !== langCode)
-            : [...postData.targetLanguages, langCode];
+    const handleLanguageToggle = (langName: string) => {
+        const newLangs = postData.targetLanguages.includes(langName)
+            ? postData.targetLanguages.filter(l => l !== langName)
+            : [...postData.targetLanguages, langName];
         updatePostData({ targetLanguages: newLangs });
     };
     
@@ -328,6 +340,10 @@ export function Step1Content({ postData, updatePostData, onCropImage }: { postDa
         }
     };
 
+    const currentSourceLanguageName = availableLanguages.find(l => l.code === postData.sourceLanguage)?.name || postData.sourceLanguage;
+    const targetLanguagesForDisplay = availableLanguages.filter(l => l.code !== postData.sourceLanguage);
+
+
     return (
         <>
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -440,16 +456,16 @@ export function Step1Content({ postData, updatePostData, onCropImage }: { postDa
                                         <Select name="sourceLanguage" value={postData.sourceLanguage} onValueChange={handleSourceLanguageChange}>
                                             <SelectTrigger><SelectValue /></SelectTrigger>
                                             <SelectContent>
-                                                {ALL_LANGUAGES.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
+                                                {availableLanguages.map(lang => (<SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>))}
                                             </SelectContent>
                                         </Select>
                                     </div>
                                     <div className="space-y-3 pt-4 border-t">
                                         <Label>Crear traducciones en:</Label>
                                         <div className="grid grid-cols-2 gap-2">
-                                            {availableTargetLanguages.map(lang => (
+                                            {targetLanguagesForDisplay.map(lang => (
                                                 <div key={lang.code} className="flex items-center space-x-2">
-                                                    <Checkbox id={`lang-${lang.code}`} checked={postData.targetLanguages.includes(lang.code)} onCheckedChange={() => handleLanguageToggle(lang.code)} />
+                                                    <Checkbox id={`lang-${lang.code}`} checked={postData.targetLanguages.includes(lang.name)} onCheckedChange={() => handleLanguageToggle(lang.name)} />
                                                     <Label htmlFor={`lang-${lang.code}`} className="font-normal">{lang.name}</Label>
                                                 </div>
                                             ))}

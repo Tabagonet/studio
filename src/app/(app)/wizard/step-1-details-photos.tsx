@@ -1,4 +1,3 @@
-
 // src/app/(app)/wizard/step-1-details-photos.tsx
 "use client";
 
@@ -90,7 +89,7 @@ export function Step1DetailsPhotos({ productData, updateProductData, isProcessin
             setAvailableLanguages(langData);
             if (langData.length > 0 && !productData.language) {
                 // Find the Spanish language object if available
-                const spanishLang = langData.find((l: Language) => l.slug === 'es');
+                const spanishLang = langData.find((l: Language) => l.code === 'es');
                 updateProductData({ language: spanishLang ? spanishLang.name : langData[0].name });
             }
         } else { console.warn('Could not load Polylang languages.'); setAvailableLanguages([]); }

@@ -1,4 +1,4 @@
-// src/app/(app)/wizard/product-wizard.tsx
+
 
 "use client";
 
@@ -7,7 +7,7 @@ import { Step1DetailsPhotos } from '@/app/(app)/wizard/step-1-details-photos';
 import { Step2Preview } from './step-2-preview';
 import { Step3Confirm } from './step-3-confirm';
 import { Step4Processing } from './step-4-processing';
-import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto } from '@/lib/types';
+import type { ProductData, SubmissionStep, SubmissionStatus, ProductPhoto, Language } from '@/lib/types';
 import { INITIAL_PRODUCT_DATA } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';

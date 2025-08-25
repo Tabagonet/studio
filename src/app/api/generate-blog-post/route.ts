@@ -9,12 +9,8 @@ import { getApiClientsForUser, getPromptForConnection, getEntityRef } from '@/li
 
 
 const languageCodeToName: Record<string, string> = {
-    es: 'Spanish',
-    en: 'English',
-    fr: 'French',
-    de: 'German',
-    pt: 'Portuguese',
-    // Add other mappings as needed
+    'es': 'Spanish', 'en': 'English', 'fr': 'French',
+    'de': 'German', 'pt': 'Portuguese', 'it': 'Italiano',
 };
 
 const BlogContentInputSchema = z.object({
@@ -22,7 +18,7 @@ const BlogContentInputSchema = z.object({
     'generate_from_topic', 'enhance_content', 'enhance_title', 'suggest_keywords',
     'generate_meta_description', 'suggest_titles', 'generate_image_meta', 'generate_focus_keyword',
   ]),
-  language: z.string().optional().default('Spanish'),
+  language: z.string().optional().default('es'),
   topic: z.string().optional(),
   tags: z.array(z.string()).optional(),
   ideaKeyword: z.string().optional(),
@@ -83,9 +79,9 @@ export async function POST(req: NextRequest) {
         
         const { activeConnectionKey } = await getApiClientsForUser(uid);
         const [entityRef] = await getEntityRef(uid);
+        
+        const languageName = languageCodeToName[input.language] || 'Spanish';
 
-        // Convert language code (e.g., 'en') to language name ('English') for the AI
-        const languageName = languageCodeToName[input.language] || input.language;
         const modelInput = { ...input, language: languageName, tags: (input.tags || []).join(', ') };
 
         let promptTemplate = '';
@@ -152,5 +148,3 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'La IA falló: ' + error.message }, { status: 500 });
     }
 }
-
-    
