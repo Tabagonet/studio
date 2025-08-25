@@ -1,5 +1,4 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser } from '@/lib/api-helpers';
@@ -48,4 +47,9 @@ export async function GET(req: NextRequest) {
 
   } catch (error: any) {
     const errorMessage = error.response?.data?.message || error.message || 'Unknown error occurred';
-    console.error(
+    console.error(`Error fetching Polylang languages, returning empty array. Reason: ${errorMessage}`);
+    // Always return an empty array on error to prevent the client from crashing.
+    // The UI should handle the empty array gracefully.
+    return NextResponse.json([]);
+  }
+}
