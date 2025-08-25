@@ -1,3 +1,4 @@
+
 // src/lib/wordpress.ts
 import axios, { AxiosInstance } from 'axios';
 
@@ -45,7 +46,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
 
     let nonce = '';
     try {
-        const nonceResponse = await api.get('/users/me?context=edit');
+        const nonceResponse = await api.get('/users/me', { params: { context: 'edit' } });
         nonce = nonceResponse.headers['x-wp-nonce'] || '';
         if (!nonce) {
              console.warn('[createWordPressApi] Nonce was not found in the response headers from /users/me.');
@@ -53,7 +54,13 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
              console.log('[createWordPressApi] Successfully fetched a new nonce from WordPress.');
         }
     } catch (nonceError: any) {
-        console.error('[createWordPressApi] Failed to fetch nonce. API calls to protected endpoints will likely fail.', nonceError.message);
+        // DETAILED ERROR LOGGING
+        const errorDetails = nonceError.response 
+            ? `Status: ${nonceError.response.status}, Data: ${JSON.stringify(nonceError.response.data)}`
+            : nonceError.message;
+        console.error(`[createWordPressApi] FATAL: Failed to fetch nonce. This indicates an authentication or permission problem. Details: ${errorDetails}`);
+        // We will continue without a nonce, but subsequent authenticated calls will fail.
+        // This allows public endpoints to still be called if needed.
     }
     
     return { api, nonce };
