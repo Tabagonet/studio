@@ -53,6 +53,7 @@ function custom_api_get_polylang_languages() {
     if (!function_exists('pll_languages_list') || !function_exists('pll_get_language')) {
         return new WP_Error('polylang_not_found', 'Polylang no está activo.', ['status' => 501]);
     }
+    
     $language_slugs = pll_languages_list();
     if (empty($language_slugs)) {
         return new WP_REST_Response([], 200);
@@ -213,9 +214,21 @@ function custom_api_update_product_images(WP_REST_Request $request) {
 }
 
 
-// == HOOKS AND REGISTRATIONS ==
+// Function to register all endpoints
+function autopress_ai_register_rest_endpoints() {
+    register_rest_route('custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => '__return_true']);
+    register_rest_route('custom/v1', '/get-languages', ['methods' => 'GET', 'callback' => 'custom_api_get_polylang_languages', 'permission_callback' => 'autopress_ai_permission_check']);
+    register_rest_route('custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => 'custom_api_link_translations', 'permission_callback' => 'autopress_ai_permission_check']);
+    register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => 'autopress_ai_permission_check']);
+    register_rest_route('custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => 'autopress_ai_permission_check']);
+    register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => 'autopress_ai_permission_check']);
+    register_rest_route('custom/v1', '/menus', ['methods' => 'GET', 'callback' => 'custom_api_get_all_menus', 'permission_callback' => 'autopress_ai_permission_check']);
+    register_rest_route('custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => 'custom_api_clone_menu', 'permission_callback' => 'autopress_ai_permission_check']);
+    register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => 'autopress_ai_permission_check']);
+}
 
-add_action('rest_api_init', function () {
+// Function to register meta fields and language filters
+function autopress_ai_register_meta_and_filters() {
     // Register lang and translations fields for all public post types
     $post_types = get_post_types(['public' => true], 'names');
     foreach ($post_types as $type) {
@@ -224,29 +237,18 @@ add_action('rest_api_init', function () {
             register_rest_field($type, 'translations', ['get_callback' => function ($p) { return pll_get_post_translations($p['id']); }, 'schema' => null]);
         }
     }
-
-    // Register all custom endpoints
-    register_rest_route('custom/v1', '/status', ['methods' => 'GET', 'callback' => 'custom_api_status_check', 'permission_callback' => '__return_true']);
-    register_rest_route('custom/v1', '/get-languages', ['methods' => 'GET', 'callback' => 'custom_api_get_polylang_languages', 'permission_callback' => 'autopress_ai_permission_check' ]);
-    register_rest_route('custom/v1', '/link-translations', ['methods' => 'POST', 'callback' => 'custom_api_link_translations', 'permission_callback' => 'autopress_ai_permission_check']);
-    register_rest_route('custom/v1', '/trash-post/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_trash_single_post', 'permission_callback' => 'autopress_ai_permission_check']);
-    register_rest_route('custom/v1', '/batch-trash-posts', ['methods' => 'POST', 'callback' => 'custom_api_batch_trash_posts', 'permission_callback' => 'autopress_ai_permission_check']);
-    register_rest_route('custom/v1', '/regenerate-css/(?P<id>\d+)', ['methods' => 'POST', 'callback' => 'custom_api_regenerate_elementor_css', 'permission_callback' => 'autopress_ai_permission_check']);
-    register_rest_route('custom/v1', '/menus', ['methods' => 'GET', 'callback' => 'custom_api_get_all_menus', 'permission_callback' => 'autopress_ai_permission_check']);
-    register_rest_route('custom/v1', '/clone-menu', ['methods' => 'POST', 'callback' => 'custom_api_clone_menu', 'permission_callback' => 'autopress_ai_permission_check']);
-    register_rest_route('custom-api/v1', '/update-product-images', ['methods' => 'POST', 'callback' => 'custom_api_update_product_images', 'permission_callback' => 'autopress_ai_permission_check' ]);
-});
-
-// Register Yoast meta fields after init
-add_action('init', function() {
-    $post_types = get_post_types(['public' => true], 'names');
+     // Register Yoast meta fields after init
     $yoast_meta_keys = ['_yoast_wpseo_title', '_yoast_wpseo_metadesc', '_yoast_wpseo_focuskw'];
     foreach ($post_types as $post_type) {
         foreach ($yoast_meta_keys as $meta_key) {
-            register_post_meta($post_type, $meta_key, ['show_in_rest' => true, 'single' => true, 'type' => 'string', 'auth_callback' => '__return_true']);
+            register_post_meta($post_type, $meta_key, ['show_in_rest' => true, 'single' => true, 'type' => 'string', 'auth_callback' => 'autopress_ai_permission_check']);
         }
     }
-});
+}
+
+// === HOOKS AND REGISTRATIONS ===
+add_action('rest_api_init', 'autopress_ai_register_meta_and_filters');
+add_action('plugins_loaded', 'autopress_ai_register_rest_endpoints');
 
 // Add filters for Polylang language parameter
 add_filter('rest_post_query', function($args, $request) { $lang = $request->get_param('lang'); if ($lang && function_exists('pll_get_language')) { $args['lang'] = $lang; } return $args; }, 10, 2);
@@ -255,5 +257,4 @@ add_filter('rest_product_query', function($args, $request) { $lang = $request->g
 
 // Add filter for checking product image existence
 add_action('woocommerce_rest_product_query', function($args, $request) { $has_image = $request->get_param('has_image'); if (null === $has_image) { return $args; } $args['meta_query'][] = array( 'key' => '_thumbnail_id', 'compare' => ($has_image === '1' || $has_image === 'yes') ? 'EXISTS' : 'NOT EXISTS', ); return $args; }, 10, 2);
-
 ?>
