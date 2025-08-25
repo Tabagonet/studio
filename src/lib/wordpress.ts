@@ -56,9 +56,9 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
     } catch (nonceError: any) {
         // DETAILED ERROR LOGGING
         const errorDetails = nonceError.response 
-            ? `Status: ${nonceError.response.status}, Data: ${JSON.stringify(nonceError.response.data)}`
+            ? `Status: ${nonceError.response.status}. WordPress Message: ${JSON.stringify(nonceError.response.data?.message || nonceError.response.data)}`
             : nonceError.message;
-        console.error(`[createWordPressApi] FATAL: Failed to fetch nonce. This indicates an authentication or permission problem. Details: ${errorDetails}`);
+        console.error(`[createWordPressApi] FATAL: Failed to fetch nonce, which is required for authenticated actions. This is likely an AUTHENTICATION or PERMISSION issue. Details: ${errorDetails}`);
         // We will continue without a nonce, but subsequent authenticated calls will fail.
         // This allows public endpoints to still be called if needed.
     }
