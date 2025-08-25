@@ -17,12 +17,14 @@ export async function GET(req: NextRequest) {
 
     const { wpApi } = await getApiClientsForUser(uid);
     if (!wpApi) {
-        throw new Error('WordPress API is not configured for the active connection.');
+        // If WP is not configured, it's not an "error" but there are no languages. Return empty array.
+        return NextResponse.json([]);
     }
     
     const siteUrl = wpApi.defaults.baseURL?.replace('/wp-json/wp/v2', '');
     if (!siteUrl) {
-      throw new Error("Could not determine base site URL from WordPress API configuration.");
+      // If no URL, we can't proceed.
+      return NextResponse.json([]);
     }
     const customEndpointUrl = `${siteUrl}/wp-json/custom/v1/get-languages`;
 
@@ -31,24 +33,15 @@ export async function GET(req: NextRequest) {
     if (response.data && Array.isArray(response.data)) {
       return NextResponse.json(response.data);
     } else {
-      throw new Error("Invalid response format from get-languages endpoint.");
+      // If the response is not what we expect, return an empty array for safety.
+      console.warn("Invalid response format from get-languages endpoint, returning empty array.");
+      return NextResponse.json([]);
     }
 
   } catch (error: any) {
-    console.error('Error fetching Polylang languages:', error.response?.data || error.message);
-    const errorMessage = error.response?.data?.message || 'Failed to fetch languages.';
-    const status = error.message.includes('not configured') ? 400 : (error.response?.status || 500);
-    
-    if (error.response?.status === 404) {
-      // Gracefully handle if Polylang or the endpoint isn't active
-      return NextResponse.json([]);
-    }
-    
-    return NextResponse.json(
-      { error: errorMessage, details: error.response?.data },
-      { status }
-    );
+    // If ANY error occurs (404, auth error, etc.), we return an empty array.
+    // The UI will show that no languages are available, which is functionally correct.
+    console.error('Error fetching Polylang languages, returning empty array:', error.response?.data || error.message);
+    return NextResponse.json([]);
   }
 }
-
-    
