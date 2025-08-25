@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Store, PlugZap, AlertCircle, RefreshCw, KeyRound as KeyRoundIcon } from "lucide-react";
+import { KeyRound, Save, Loader2, Trash2, PlusCircle, Users, Building, User, Store, PlugZap, AlertCircle, RefreshCw, KeyRound as KeyRoundIcon, Eye, EyeOff } from "lucide-react";
 import { auth, onAuthStateChanged, type FirebaseUser } from '@/lib/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
@@ -31,6 +31,7 @@ interface ConnectionData {
     wordpressApiUrl?: string;
     wordpressUsername?: string;
     wordpressApplicationPassword?: string;
+    pluginSecretKey?: string; // New secret key
     shopifyStoreUrl?: string;
     shopifyApiPassword?: string;
 }
@@ -58,6 +59,7 @@ const INITIAL_STATE: ConnectionData = {
     wordpressApiUrl: '',
     wordpressUsername: '',
     wordpressApplicationPassword: '',
+    pluginSecretKey: '',
     shopifyStoreUrl: '',
     shopifyApiPassword: '',
 };
@@ -109,6 +111,7 @@ export default function ConnectionsPage() {
     
     const [planUsage, setPlanUsage] = useState<PlanUsage | null>(null);
     const [isLoadingUsage, setIsLoadingUsage] = useState(true);
+    const [isPluginSecretKeyVisible, setIsPluginSecretKeyVisible] = React.useState(false);
 
 
     const fetchAllDataForTarget = useCallback(async (user: FirebaseUser, targetType: 'user' | 'company', targetId: string | null) => {
@@ -610,30 +613,51 @@ export default function ConnectionsPage() {
                                 <CardTitle>Conexión a WordPress / WooCommerce</CardTitle>
                                 <CardDescription>Credenciales para un sitio específico.</CardDescription>
                             </CardHeader>
-                            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda WooCommerce</Label>
-                                    <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl || ''} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
+                            <CardContent className="space-y-4">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <Label htmlFor="wooCommerceStoreUrl">URL de la Tienda WooCommerce</Label>
+                                        <Input id="wooCommerceStoreUrl" name="wooCommerceStoreUrl" value={formData.wooCommerceStoreUrl || ''} onChange={handleInputChange} placeholder="https://mitienda.com" disabled={isSaving} />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
+                                        <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl || ''} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
+                                        <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey || ''} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="wordpressUsername">Usuario de WordPress</Label>
+                                        <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername || ''} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
+                                        <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret || ''} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
+                                        <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword || ''} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
+                                    </div>
                                 </div>
-                                <div>
-                                    <Label htmlFor="wordpressApiUrl">URL de WordPress</Label>
-                                    <Input id="wordpressApiUrl" name="wordpressApiUrl" value={formData.wordpressApiUrl || ''} onChange={handleInputChange} placeholder="https://misitio.com" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="wooCommerceApiKey">Clave de Cliente (API Key)</Label>
-                                    <Input id="wooCommerceApiKey" name="wooCommerceApiKey" type="password" value={formData.wooCommerceApiKey || ''} onChange={handleInputChange} placeholder="ck_xxxxxxxxxxxx" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="wordpressUsername">Usuario de WordPress</Label>
-                                    <Input id="wordpressUsername" name="wordpressUsername" value={formData.wordpressUsername || ''} onChange={handleInputChange} placeholder="Tu usuario admin" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="wooCommerceApiSecret">Clave Secreta (API Secret)</Label>
-                                    <Input id="wooCommerceApiSecret" name="wooCommerceApiSecret" type="password" value={formData.wooCommerceApiSecret || ''} onChange={handleInputChange} placeholder="cs_xxxxxxxxxxxx" disabled={isSaving}/>
-                                </div>
-                                <div>
-                                    <Label htmlFor="wordpressApplicationPassword">Contraseña de Aplicación</Label>
-                                    <Input id="wordpressApplicationPassword" name="wordpressApplicationPassword" type="password" value={formData.wordpressApplicationPassword || ''} onChange={handleInputChange} placeholder="xxxx xxxx xxxx xxxx xxxx xxxx" disabled={isSaving}/>
+                                <div className="pt-4 border-t">
+                                     <Label htmlFor="pluginSecretKey">Clave Secreta del Plugin (Opcional)</Label>
+                                      <div className="flex items-center gap-2">
+                                        <Input 
+                                            id="pluginSecretKey" 
+                                            name="pluginSecretKey" 
+                                            type={isPluginSecretKeyVisible ? 'text' : 'password'} 
+                                            value={formData.pluginSecretKey || ''} 
+                                            onChange={handleInputChange} 
+                                            placeholder="Introduce una clave segura si falla el nonce..." 
+                                            disabled={isSaving}
+                                            className="font-mono"
+                                        />
+                                        <Button variant="outline" size="icon" onClick={() => setIsPluginSecretKeyVisible(!isPluginSecretKeyVisible)}>
+                                            {isPluginSecretKeyVisible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        </Button>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">Usa este campo solo si la autenticación normal falla, como alternativa más directa.</p>
                                 </div>
                             </CardContent>
                         </Card>

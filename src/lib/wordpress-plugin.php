@@ -1,3 +1,4 @@
+
 <?php
 /*
 Plugin Name: AutoPress AI Helper
@@ -13,7 +14,8 @@ if (!defined('ABSPATH')) exit;
 class AutoPress_AI_Helper {
 
     public function __construct() {
-        add_action('init', [$this, 'initialize_plugin'], 100);
+        // Use a high priority to ensure Polylang or other plugins are loaded first.
+        add_action('plugins_loaded', [$this, 'initialize_plugin'], 100);
     }
 
     public function initialize_plugin() {
@@ -80,14 +82,28 @@ class AutoPress_AI_Helper {
             'callback' => [$this, 'custom_api_update_product_images'],
             'permission_callback' => [$this, 'permission_check_v2']
         ]);
+
+        // Secret key management endpoint
+        register_rest_route('custom/v1', '/secret-key', [
+            'methods' => 'POST',
+            'callback' => [$this, 'handle_secret_key'],
+            'permission_callback' => function(WP_REST_Request $request) {
+                // Only allow admins to set the key via nonce auth
+                $nonce = $request->get_header('X-WP-Nonce');
+                if (!$nonce || !wp_verify_nonce($nonce, 'wp_rest') || !current_user_can('manage_options')) {
+                    return new WP_Error('auth_error', 'No tienes permiso para configurar la clave secreta.', ['status' => 403]);
+                }
+                return true;
+            }
+        ]);
     }
 
     public function permission_check_v2(WP_REST_Request $request) {
         // Priority 1: Check for the custom secret key header
-        $secret_key = $request->get_header('X-Autopress-Secret');
-        if ($secret_key) {
+        $secret_key_header = $request->get_header('X-Autopress-Secret');
+        if ($secret_key_header) {
             $saved_secret = get_option('autopress_ai_secret_key');
-            if ($saved_secret && hash_equals($saved_secret, $secret_key)) {
+            if ($saved_secret && hash_equals($saved_secret, $secret_key_header)) {
                 return true;
             }
         }
@@ -95,7 +111,7 @@ class AutoPress_AI_Helper {
         // Priority 2: Fallback to the nonce check for backward compatibility
         $nonce = $request->get_header('X-WP-Nonce');
         if (!$nonce) {
-            return new WP_Error('no_auth_method', 'Falta la cabecera de autenticación (Nonce o Clave Secreta).', ['status' => 401]);
+            return new WP_Error('no_nonce', 'Falta el encabezado de nonce.', ['status' => 401]);
         }
         if (!wp_verify_nonce($nonce, 'wp_rest')) {
             return new WP_Error('invalid_nonce', 'Nonce inválido o expirado.', ['status' => 403]);
@@ -114,7 +130,7 @@ class AutoPress_AI_Helper {
 
     public function status_check() {
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
-        $is_polylang_active = is_plugin_active('polylang/polylang.php') || is_plugin_active('polylang-pro/polylang.php');
+        $is_polylang_active = function_exists('pll_languages_list');
         return new WP_REST_Response([
             'status' => 'ok',
             'plugin_version' => $this->get_plugin_version(),
@@ -130,11 +146,13 @@ class AutoPress_AI_Helper {
             return new WP_Error('polylang_not_found', 'La función pll_languages_list no existe. Asegúrate de que Polylang está activo.', ['status' => 501]);
         }
         $language_slugs = pll_languages_list(['hide_empty' => false]);
-        if (!is_array($language_slugs)) { return new WP_REST_Response([], 200); }
+        if (!is_array($language_slugs) || empty($language_slugs)) { return new WP_REST_Response([], 200); }
         $formatted_languages = [];
         foreach ($language_slugs as $slug) {
-            $details = pll_get_language($slug, 'name');
-            if ($details) { $formatted_languages[] = [ 'code' => $slug, 'name' => $details, 'is_rtl' => (bool)pll_is_rtl($slug) ]; }
+            $details = pll_get_language($slug);
+            if ($details && is_object($details)) {
+                $formatted_languages[] = [ 'code' => $details->slug, 'name' => $details->name, 'is_rtl' => (bool)$details->is_rtl ];
+            }
         }
         return new WP_REST_Response($formatted_languages, 200);
     }
@@ -148,6 +166,9 @@ class AutoPress_AI_Helper {
     public function custom_api_update_product_images(WP_REST_Request $request) { $product_id = intval($request->get_param('product_id')); $mode = sanitize_text_field($request->get_param('mode')); $image_urls = $request->get_param('images'); if (!$product_id) { return new WP_Error('no_id', 'Falta el ID del producto', ['status' => 400]); } $product = wc_get_product($product_id); if (!$product) { return new WP_Error('not_found', 'Producto no encontrado', ['status' => 404]); } $current_ids = $product->get_gallery_image_ids(); if ($product->get_image_id()) { array_unshift($current_ids, $product->get_image_id()); } $new_ids = []; if (is_array($image_urls)) { foreach ($image_urls as $img) { if (is_numeric($img)) { $new_ids[] = intval($img); } elseif (filter_var($img, FILTER_VALIDATE_URL)) { $id = $this->sideload_image($img, $product_id); if (is_numeric($id)) $new_ids[] = $id; } } } $final_ids = []; if ($mode === 'replace') { $final_ids = $new_ids; } elseif ($mode === 'add') { $final_ids = array_unique(array_merge($current_ids, $new_ids)); } elseif ($mode === 'remove') { $final_ids = array_diff($current_ids, $new_ids); } elseif ($mode === 'clear') { $final_ids = []; } else { $final_ids = $new_ids; } $main_id = array_shift($final_ids); $product->set_image_id($main_id ?: 0); $product->set_gallery_image_ids($final_ids); $product->save(); return new WP_REST_Response(['status' => 'success', 'product_id' => $product_id, 'images' => $product->get_gallery_image_ids()], 200); }
     private function sideload_image($file_url, $post_id) { if (!function_exists('media_handle_sideload')) { require_once ABSPATH . 'wp-admin/includes/file.php'; require_once ABSPATH . 'wp-admin/includes/media.php'; require_once ABSPATH . 'wp-admin/includes/image.php'; } $tmp = download_url($file_url, 15); if (is_wp_error($tmp)) { error_log('[AUTOPRESS AI DEBUG] Sideload Error (download_url): ' . $tmp->get_error_message()); return $tmp; } $file_array = ['name' => basename(wp_parse_url($file_url, PHP_URL_PATH)), 'tmp_name' => $tmp]; $id = media_handle_sideload($file_array, $post_id); if (is_wp_error($id)) { @unlink($file_array['tmp_name']); error_log('[AUTOPRESS AI DEBUG] Sideload Error (media_handle_sideload): ' . $id->get_error_message()); } return $id; }
     public function custom_api_batch_update_status(WP_REST_Request $request) { $post_ids = $request->get_param('post_ids'); $status = $request->get_param('status'); if (empty($post_ids) || !is_array($post_ids) || !in_array($status, ['publish', 'draft', 'pending', 'private'])) { return new WP_Error('invalid_payload', 'Se requiere un array de IDs y un estado válido.', ['status' => 400]); } $results = ['success' => [], 'failed' => []]; foreach ($post_ids as $post_id) { $id = absint($post_id); if ($id && current_user_can('edit_post', $id)) { $post_data = ['ID' => $id, 'post_status' => $status]; $result = wp_update_post($post_data, true); if (is_wp_error($result)) { $results['failed'][] = ['id' => $id, 'reason' => $result->get_error_message()]; } else { $results['success'][] = $id; } } else { $results['failed'][] = ['id' => $id, 'reason' => 'Permiso denegado o ID inválido.']; } } return new WP_REST_Response(['success' => true, 'data' => $results], 200); }
+    public function handle_secret_key(WP_REST_Request $request) { $secret_key = sanitize_text_field($request->get_param('secret_key')); update_option('autopress_ai_secret_key', $secret_key); return new WP_REST_Response(['success' => true, 'message' => 'Clave secreta guardada con éxito.'], 200); }
+
 }
 
+// Initialize the plugin
 new AutoPress_AI_Helper();
