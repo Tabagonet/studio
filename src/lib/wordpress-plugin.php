@@ -30,7 +30,7 @@ class AutoPress_AI_Helper {
         // Endpoint para obtener idiomas de Polylang
         register_rest_route('custom/v1', '/get-languages', [
             'methods' => 'GET',
-            'callback' => [$this, 'get_polylang_languages'],
+            'callback' => [$this, 'custom_api_get_polylang_languages'],
             'permission_callback' => [$this, 'permission_check']
         ]);
         
@@ -96,12 +96,17 @@ class AutoPress_AI_Helper {
         ], 200);
     }
     
-    public function get_polylang_languages() {
+    public function custom_api_get_polylang_languages() {
         error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit.');
+        
+        include_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+        $is_polylang_active = is_plugin_active('polylang/polylang.php');
+        error_log('[AUTOPRESS AI DEBUG] Result of is_plugin_active("polylang/polylang.php"): ' . ($is_polylang_active ? 'true' : 'false'));
+
         $pll_list_exists = function_exists('pll_languages_list');
         $pll_get_exists = function_exists('pll_get_language');
-        error_log('[AUTOPRESS AI DEBUG] function_exists("pll_languages_list"): ' . ($pll_list_exists ? 'true' : 'false'));
-        error_log('[AUTOPRESS AI DEBUG] function_exists("pll_get_language"): ' . ($pll_get_exists ? 'true' : 'false'));
+        error_log('[AUTOPRESS AI DEBUG] Result of function_exists("pll_languages_list"): ' . ($pll_list_exists ? 'true' : 'false'));
+        error_log('[AUTOPRESS AI DEBUG] Result of function_exists("pll_get_language"): ' . ($pll_get_exists ? 'true' : 'false'));
         
         if (!$pll_list_exists || !$pll_get_exists) {
             error_log('[AUTOPRESS AI DEBUG] One or more Polylang functions do not exist. Returning error.');
@@ -281,5 +286,6 @@ class AutoPress_AI_Helper {
 // Iniciar el plugin
 add_action('init', function() {
     new AutoPress_AI_Helper();
-}, 0);
+});
 
+    
