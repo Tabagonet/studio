@@ -1,4 +1,3 @@
-
 // src/lib/wordpress.ts
 import axios, { AxiosInstance } from 'axios';
 
@@ -32,14 +31,13 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
   }
 
   try {
+    const authHeader = `Basic ${Buffer.from(`${username}:${applicationPassword}`).toString('base64')}`;
+
     const api = axios.create({
       baseURL: `${url}/wp-json/wp/v2`,
-      auth: {
-        username,
-        password: applicationPassword,
-      },
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': authHeader,
       },
       timeout: 45000, 
     });
@@ -49,18 +47,15 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
         const nonceResponse = await api.get('/users/me', { params: { context: 'edit' } });
         nonce = nonceResponse.headers['x-wp-nonce'] || '';
         if (!nonce) {
-             console.warn('[createWordPressApi] Nonce was not found in the response headers from /users/me.');
+             console.log('[createWordPressApi] Nonce was not found in the response headers from /users/me.');
         } else {
              console.log('[createWordPressApi] Successfully fetched a new nonce from WordPress.');
         }
     } catch (nonceError: any) {
-        // DETAILED ERROR LOGGING
         const errorDetails = nonceError.response 
             ? `Status: ${nonceError.response.status}. WordPress Message: ${JSON.stringify(nonceError.response.data?.message || nonceError.response.data)}`
             : nonceError.message;
-        console.error(`[createWordPressApi] FATAL: Failed to fetch nonce, which is required for authenticated actions. This is likely an AUTHENTICATION or PERMISSION issue. Details: ${errorDetails}`);
-        // We will continue without a nonce, but subsequent authenticated calls will fail.
-        // This allows public endpoints to still be called if needed.
+        console.error(`[createWordPressApi] FAILED to fetch nonce. This is a critical authentication error. Details: ${errorDetails}`);
     }
     
     return { api, nonce };
