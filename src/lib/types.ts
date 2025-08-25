@@ -126,8 +126,8 @@ export interface BlogPostData {
   categoryPath?: string;
   status: 'publish' | 'draft' | 'pending';
   featuredImage: ProductPhoto | null;
-  sourceLanguage: string;
-  targetLanguages: string[];
+  sourceLanguage: string; // Language code, e.g. 'es'
+  targetLanguages: string[]; // Array of language names
   author: WordPressUser | null;
   publishDate: Date | null;
 }

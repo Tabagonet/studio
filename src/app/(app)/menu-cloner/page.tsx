@@ -1,4 +1,3 @@
-
 // src/app/(app)/menu-cloner/page.tsx
 
 "use client";
@@ -150,9 +149,9 @@ export default function MenuClonerPage() {
                                         <SelectValue placeholder="Elige un menú..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {menus.map(menu => (
+                                        {menus.length > 0 ? menus.map(menu => (
                                             <SelectItem key={menu.id} value={menu.id.toString()}>{menu.name}</SelectItem>
-                                        ))}
+                                        )) : <SelectItem value="none" disabled>No se encontraron menús.</SelectItem>}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -163,9 +162,9 @@ export default function MenuClonerPage() {
                                         <SelectValue placeholder="Elige un idioma..." />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {languages.map(lang => (
+                                        {languages.length > 0 ? languages.map(lang => (
                                             <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>
-                                        ))}
+                                        )) : <SelectItem value="none" disabled>No se encontraron idiomas.</SelectItem>}
                                     </SelectContent>
                                 </Select>
                             </div>
