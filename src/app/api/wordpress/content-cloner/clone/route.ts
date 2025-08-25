@@ -1,5 +1,4 @@
 
-
 import { NextRequest, NextResponse } from 'next/server';
 import { adminAuth } from '@/lib/firebase-admin';
 import { getApiClientsForUser, collectElementorTexts, replaceElementorTexts } from '@/lib/api-helpers';
@@ -25,8 +24,18 @@ const batchCloneSchema = z.object({
 });
 
 const LANG_CODE_MAP: { [key: string]: string } = {
-    'es': 'Spanish', 'en': 'Inglés', 'fr': 'Francés',
-    'de': 'Alemán', 'pt': 'Portugués', 'it': 'Italiano',
+    'es': 'Spanish',
+    'en': 'English',
+    'fr': 'French',
+    'de': 'German',
+    'pt': 'Portuguese',
+    'it': 'Italiano',
+    'nl': 'Dutch',
+    'ru': 'Russian',
+    'ja': 'Japanese',
+    'zh': 'Chinese',
+    'ar': 'Arabic',
+    'ko': 'Korean',
 };
 
 export async function POST(req: NextRequest) {
@@ -140,8 +149,7 @@ export async function POST(req: NextRequest) {
                             }
                         }
                         
-                        if (isProduct) await wooApi?.put(updateEndpoint, updatePayload);
-                        else await wpApi?.post(updateEndpoint, updatePayload);
+                        await apiToUse.put(updateEndpoint, updatePayload);
 
                         write({ id: item.id, status: 'success', message: '¡Completado!', progress: 100 });
                         console.log(`[Cloner] Clone ${clone_id} successfully updated.`);
