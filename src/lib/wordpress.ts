@@ -55,7 +55,7 @@ export async function createWordPressApi(credentials: WordPressCredentials): Pro
         }
     } catch (nonceError: any) {
         console.error('[createWordPressApi] Failed to fetch nonce:', nonceError.message, nonceError.response?.data);
-        // Do not throw an error, allow proceeding without a nonce for public endpoints.
+        // Continue without nonce to allow non-authenticated requests (like /status) to proceed if needed.
     }
     
     return { api, nonce };

@@ -77,22 +77,20 @@ class AutoPress_AI_Helper {
 
     public function permission_check(WP_REST_Request $request) {
         $nonce = $request->get_header('X-WP-Nonce');
+        $user_can = current_user_can('edit_posts');
+        error_log('[AUTOPRESS AI DEBUG] Permission check - Nonce: ' . ($nonce ? $nonce : 'missing') . ', User can edit_posts: ' . ($user_can ? 'true' : 'false'));
         if (!$nonce) {
-            error_log('[AUTOPRESS AI DEBUG] Permission check failed: Nonce header missing.');
-            return new WP_Error('no_nonce', 'Nonce header missing.', ['status' => 401]);
+            return new WP_Error('no_nonce', 'Falta el encabezado de nonce.', ['status' => 401]);
         }
         if (!wp_verify_nonce($nonce, 'wp_rest')) {
-            error_log('[AUTOPRESS AI DEBUG] Permission check failed: Invalid nonce provided.');
-            return new WP_Error('invalid_nonce', 'Invalid or expired nonce.', ['status' => 403]);
+            return new WP_Error('invalid_nonce', 'Nonce inválido o expirado.', ['status' => 403]);
         }
-        if (!current_user_can('edit_posts')) {
-             error_log('[AUTOPRESS AI DEBUG] Permission check failed: User lacks edit_posts capability.');
-            return new WP_Error('insufficient_permissions', 'User lacks edit_posts capability.', ['status' => 403]);
+        if (!$user_can) {
+            return new WP_Error('insufficient_permissions', 'Usuario sin permisos para editar entradas.', ['status' => 403]);
         }
-        error_log('[AUTOPRESS AI DEBUG] Permission check successful.');
         return true;
     }
-
+    
     private function get_plugin_version() {
         if (!function_exists('get_plugin_data')) {
             require_once ABSPATH . 'wp-admin/includes/plugin.php';
@@ -117,7 +115,7 @@ class AutoPress_AI_Helper {
     }
 
     public function get_polylang_languages() {
-        error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit.');
+        error_log('[AUTOPRESS AI DEBUG] Endpoint /get-languages hit at ' . date('Y-m-d H:i:s'));
 
         include_once ABSPATH . 'wp-admin/includes/plugin.php';
         $is_polylang_active = is_plugin_active('polylang/polylang.php') || is_plugin_active('polylang-pro/polylang.php');
@@ -125,7 +123,7 @@ class AutoPress_AI_Helper {
 
         if ($is_polylang_active && (!function_exists('pll_languages_list') || !function_exists('pll_get_language'))) {
             error_log('[AUTOPRESS AI DEBUG] Polylang functions not available, attempting to load...');
-            if (file_exists(WP_PLUGIN_DIR . '/polylang/polylang.php')) {
+             if (file_exists(WP_PLUGIN_DIR . '/polylang/polylang.php')) {
                 include_once WP_PLUGIN_DIR . '/polylang/polylang.php';
             } elseif (file_exists(WP_PLUGIN_DIR . '/polylang-pro/polylang.php')) {
                 include_once WP_PLUGIN_DIR . '/polylang-pro/polylang.php';

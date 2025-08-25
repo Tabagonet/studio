@@ -13,12 +13,10 @@ export async function GET(req: NextRequest) {
             console.error('[API get-languages] Auth token missing.');
             return NextResponse.json({ error: 'No auth token provided.' }, { status: 401 });
         }
-
         if (!adminAuth) {
             console.error('[API get-languages] Firebase Admin Auth not initialized.');
             return NextResponse.json({ error: 'Firebase Admin Auth not initialized.' }, { status: 500 });
         }
-
         const decodedToken = await adminAuth.verifyIdToken(token);
         const uid = decodedToken.uid;
         console.log(`[API get-languages] User authenticated: ${uid}`);
@@ -39,39 +37,46 @@ export async function GET(req: NextRequest) {
             console.log('[API get-languages] Status response:', JSON.stringify(statusResponse.data));
         } catch (error: any) {
             console.error('[API get-languages] Error fetching /status:', error.message, error.response?.data);
-            return NextResponse.json({ error: 'Failed to fetch WordPress site status.' }, { status: 500 });
+            return NextResponse.json({ error: 'Failed to fetch status endpoint.' }, { status: 500 });
         }
-        
+
         if (!statusResponse.data?.polylang_active) {
             console.warn('[API get-languages] Polylang is not active according to /status endpoint.');
-            return NextResponse.json({ error: 'Polylang no está activo en el sitio de WordPress conectado.' }, { status: 501 });
+            return NextResponse.json({ error: 'Polylang no está activo en el sitio.' }, { status: 501 });
+        }
+
+        if (!nonce) {
+            console.error('[API get-languages] Nonce is missing, cannot make authenticated request to get languages.');
+            return NextResponse.json({ error: 'Failed to retrieve security nonce for WordPress.' }, { status: 500 });
         }
         
-        const response = await wpApi.get(languagesEndpointUrl, {
-            headers: { 'X-WP-Nonce': nonce || '' },
-        });
+        try {
+            const response = await wpApi.get(languagesEndpointUrl, {
+                headers: { 'X-WP-Nonce': nonce },
+            });
+            console.log(`[API get-languages] Received status ${response.status}:`, JSON.stringify(response.data));
 
-        console.log(`[API get-languages] Received status ${response.status} from WordPress languages endpoint.`);
-
-        if (response.data && Array.isArray(response.data)) {
-            if (response.data.every(item => typeof item === 'object' && item !== null && 'code' in item && 'name' in item)) {
-                console.log(`[API get-languages] Success. Returning ${response.data.length} languages.`);
-                return NextResponse.json(response.data);
+            if (response.data && Array.isArray(response.data)) {
+                if (response.data.every(item => typeof item === 'object' && item !== null && 'code' in item && 'name' in item)) {
+                    console.log(`[API get-languages] Success. Returning ${response.data.length} languages.`);
+                    return NextResponse.json(response.data);
+                } else {
+                    console.error('[API get-languages] Invalid response format:', JSON.stringify(response.data));
+                    return NextResponse.json({ error: 'Invalid response format from get-languages.' }, { status: 500 });
+                }
+            } else if (response.data?.code) {
+                console.error(`[API get-languages] Plugin error: ${response.data.code} - ${response.data.message}`);
+                return NextResponse.json({ error: response.data.message }, { status: response.status });
             } else {
-                console.error('[API get-languages] Invalid response format from get-languages:', JSON.stringify(response.data));
-                return NextResponse.json({ error: 'Invalid response format from get-languages endpoint.' }, { status: 500 });
+                console.error('[API get-languages] Invalid or empty response:', JSON.stringify(response.data));
+                return NextResponse.json({ error: 'Invalid response from get-languages.' }, { status: 500 });
             }
-        } else if (response.data?.code) { // Handle WP_Error
-            console.error(`[API get-languages] Plugin error: ${response.data.code} - ${response.data.message}`);
-            return NextResponse.json({ error: response.data.message }, { status: response.status || 500 });
-        } else {
-            console.error('[API get-languages] Invalid or empty response from get-languages:', JSON.stringify(response.data));
-            return NextResponse.json({ error: 'Invalid response from get-languages endpoint.' }, { status: 500 });
+        } catch (error: any) {
+             console.error('[API get-languages] Error fetching languages:', error.message, error.response?.data);
+             return NextResponse.json({ error: error.response?.data?.message || 'Failed to fetch languages.' }, { status: error.response?.status || 500 });
         }
-
     } catch (error: any) {
-        const errorMessage = error.response?.data?.message || error.message || 'Unknown error';
-        console.error(`[API get-languages] CRITICAL ERROR fetching Polylang languages: ${errorMessage}`, error.response?.data);
-        return NextResponse.json({ error: errorMessage }, { status: 500 });
+        console.error('[API get-languages] Critical error:', error.message, error.response?.data);
+        return NextResponse.json({ error: error.message || 'Unknown error' }, { status: 500 });
     }
 }
